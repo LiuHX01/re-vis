@@ -1,0 +1,54 @@
+Date : 2023-04-01 19:26:54
+Directory : /Users/hanxiliu/Documents/mycode/re-vis
+Total : 17 files,  2260 codes, 9 comments, 91 blanks, all 2360 lines
+
+Languages
++------------+------------+------------+------------+------------+------------+
+| language   | files      | code       | comment    | blank      | total      |
++------------+------------+------------+------------+------------+------------+
+| JSON       |          2 |      1,726 |          0 |          2 |      1,728 |
+| vue        |          4 |        331 |          0 |         53 |        384 |
+| JavaScript |          4 |        175 |          9 |         30 |        214 |
+| HTML       |          1 |         13 |          0 |          1 |         14 |
+| CSS        |          1 |          7 |          0 |          1 |          8 |
+| XML        |          4 |          4 |          0 |          0 |          4 |
+| Markdown   |          1 |          4 |          0 |          4 |          8 |
++------------+------------+------------+------------+------------+------------+
+
+Directories
++-----------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                  | files      | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                     |         17 |      2,260 |          9 |         91 |      2,360 |
+| . (Files)                                                             |          5 |      1,748 |          1 |          9 |      1,758 |
+| public                                                                |          3 |          3 |          0 |          0 |          3 |
+| src                                                                   |          9 |        509 |          8 |         82 |        599 |
+| src (Files)                                                           |          3 |         84 |          0 |         17 |        101 |
+| src/assets                                                            |          1 |          1 |          0 |          0 |          1 |
+| src/components                                                        |          4 |        408 |          8 |         58 |        474 |
+| src/tools                                                             |          1 |         16 |          0 |          7 |         23 |
++-----------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-----------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| filename                                                              | language   | code       | comment    | blank      | total      |
++-----------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| /Users/hanxiliu/Documents/mycode/re-vis/README.md                     | Markdown   |          4 |          0 |          4 |          8 |
+| /Users/hanxiliu/Documents/mycode/re-vis/index.html                    | HTML       |         13 |          0 |          1 |         14 |
+| /Users/hanxiliu/Documents/mycode/re-vis/package-lock.json             | JSON       |      1,700 |          0 |          1 |      1,701 |
+| /Users/hanxiliu/Documents/mycode/re-vis/package.json                  | JSON       |         26 |          0 |          1 |         27 |
+| /Users/hanxiliu/Documents/mycode/re-vis/public/uav.svg                | XML        |          1 |          0 |          0 |          1 |
+| /Users/hanxiliu/Documents/mycode/re-vis/public/ugv.svg                | XML        |          1 |          0 |          0 |          1 |
+| /Users/hanxiliu/Documents/mycode/re-vis/public/vite.svg               | XML        |          1 |          0 |          0 |          1 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/App.vue                   | vue        |         71 |          0 |         13 |         84 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/assets/vue.svg            | XML        |          1 |          0 |          0 |          1 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/components/MapVis.vue     | vue        |        160 |          0 |         17 |        177 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/components/MotionRugs.vue | vue        |         61 |          0 |         11 |         72 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/components/Pixel.vue      | vue        |         39 |          0 |         12 |         51 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/components/PixelWorker.js | JavaScript |        148 |          8 |         18 |        174 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/main.js                   | JavaScript |          6 |          0 |          3 |          9 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/style.css                 | CSS        |          7 |          0 |          1 |          8 |
+| /Users/hanxiliu/Documents/mycode/re-vis/src/tools/Adaptor.js          | JavaScript |         16 |          0 |          7 |         23 |
+| /Users/hanxiliu/Documents/mycode/re-vis/vite.config.js                | JavaScript |          5 |          1 |          2 |          8 |
+| Total                                                                 |            |      2,260 |          9 |         91 |      2,360 |
++-----------------------------------------------------------------------+------------+------------+------------+------------+------------+
