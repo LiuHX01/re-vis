@@ -61,30 +61,20 @@ onMounted(() => {
         }
     }, 500);
 });
-
-const activeTabNames = ref("MapVis");
-const activeTabChange = (tabName) => {
-    if (tabName == "MotionRugs") {
-        EventAdaptor.Emitter("resetMaxWidth");
-    }
-};
 </script>
 
 <template>
     <div id="app">
-        <el-tabs class="headerTab" v-model="activeTabNames" @tab-change="activeTabChange" stretch>
-            <el-tab-pane label="地图" name="MapVis">
-                <MapVis></MapVis>
-            </el-tab-pane>
-            <el-tab-pane label="模式" name="MotionRugs">
-                <MotionRugs></MotionRugs>
-            </el-tab-pane>
-        </el-tabs>
+        <MapVis></MapVis>
+        <div class="divider"></div>
+        <MotionRugs></MotionRugs>
     </div>
 </template>
 
 <style>
-.headerTab > .el-tabs__header {
-    margin-bottom: 1px;
+.divider {
+    height: 1px;
+    width: 100%;
+    background-color: #e6e;
 }
 </style>

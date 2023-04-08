@@ -300,7 +300,7 @@ const findMover = (id) => {
 <style>
 #map {
     width: 100%;
-    height: calc(100vh - 41px);
+    height: calc(100vh - 57px);
 }
 
 .mover-card {

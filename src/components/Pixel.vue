@@ -4,7 +4,7 @@ import { PixelAdaptor } from "../tools/Adaptor";
 
 import resizeImageData from "resize-image-data";
 
-const props = defineProps(["id", "strategy", "feature"]);
+// const props = defineProps(["id", "strategy", "feature"]);
 
 const cItem = {
     canvas: null,
@@ -14,14 +14,14 @@ const cItem = {
 const resizeScale = 4;
 
 onMounted(() => {
-    cItem.canvas = document.getElementById(props.id);
+    cItem.canvas = document.getElementById("canvas");
     cItem.ctx = cItem.canvas.getContext("2d");
     cItem.canvas.width = 0;
     cItem.canvas.height = 0;
 
     PixelAdaptor.Listener((data) => {
         const { strategy, feature, imgData } = data;
-        if (strategy === props.strategy && feature === props.feature) {
+        if (strategy === "HilbertOrder" && feature === "Velocity") {
             // 将imgData扩大到canvas的大小
             const afterImgData = resizeImageData(imgData, imgData.width * resizeScale, imgData.height * resizeScale);
             cItem.canvas.width = afterImgData.width;
@@ -34,7 +34,7 @@ onMounted(() => {
 
 <template>
     <div class="pixel-container">
-        <canvas :id="props.id"></canvas>
+        <canvas id="canvas"></canvas>
     </div>
 </template>
 
