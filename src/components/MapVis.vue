@@ -167,7 +167,7 @@ class Mover {
         this.marker = null;
         this.endMarker = null;
         this.seq = null;
-        this.moveDuration = 300;
+        this.moveDuration = 500;
     }
 
     newLoc(loc, frameNum, velocity, acceleration) {
@@ -198,6 +198,7 @@ class Mover {
                 {
                     auto: true,
                     duration: this.moveDuration,
+                    easing: L.Motion.Ease.swing,
                 },
                 {
                     removeOnEnd: true,
@@ -258,7 +259,7 @@ const findMover = (id) => {
     console.log("findMover", id);
 
     myMap.nowCenter = movers[id].locList[movers[id].nowFrame];
-    map.flyTo(movers[id].locList[movers[id].nowFrame]);
+    map.panTo(movers[id].locList[movers[id].nowFrame]);
 };
 </script>
 

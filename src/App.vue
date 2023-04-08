@@ -66,7 +66,7 @@ onMounted(() => {
                 nowFrame++;
             }
         }
-    }, 300);
+    }, 500);
 });
 </script>
 
