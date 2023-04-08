@@ -1,41 +1,55 @@
 <script setup>
-import { ref, onMounted, nextTick } from "vue";
-import { DataAdaptor, PixelAdaptor, EventAdaptor } from "../tools/Adaptor.js";
+import { ref, onMounted } from "vue";
+import { DataAdaptor } from "../tools/Adaptor.js";
 
-import Pixel from "./Pixel.vue";
+import resizeImageData from "resize-image-data";
+
+/**
+ * : 经过测试，速度+希尔伯特曲线索引的策略是最直观的，因此在这里只展示这一种pixels
+ */
 
 let pixelContainerRef = ref(null);
 
-let strategys = ["HilbertOrder", "zOrder"]; // 策略列表
-let en2cnStrategys = ["希尔伯特曲线", "Z曲线"]; // 策略列表
-let features = ["Velocity", "Acceleration"]; // 特征列表
-let en2cnFeatures = ["速度", "加速度"]; // 特征列表
+const cItem = {
+    canvas: null,
+    ctx: null,
+};
+const resizeScale = 4;
+
+let strategys = ["HilbertOrder"]; // 策略列表
+let features = ["Velocity"]; // 特征列表
 
 const pixelWorker = new Worker(new URL("./PixelWorker.js", import.meta.url));
 
 onMounted(() => {
+    cItem.canvas = document.getElementById("canvas");
+    cItem.ctx = cItem.canvas.getContext("2d");
+    cItem.canvas.width = pixelContainerRef.value.clientWidth;
+    cItem.canvas.height = 56;
+
     DataAdaptor.Listener((data) => {
         const { fData, fNum } = data;
-        pixelWorker.postMessage({ fData, fNum, eType: "newData" });
+        pixelWorker.postMessage({ fData: fData, fNum: fNum, width: cItem.canvas.width });
     });
     pixelWorker.onmessage = (e) => {
         const { strategy, feature, imgData } = e.data;
-        PixelAdaptor.Emitter({ strategy, feature, imgData });
+        const afterImgData = resizeImageData(imgData, imgData.width * resizeScale, imgData.height * resizeScale);
+        cItem.ctx.putImageData(afterImgData, 0, 0);
     };
 
-    EventAdaptor.Listener((msg) => {
-        if (msg === "resetMaxWidth") {
-            nextTick(() => {
-                pixelWorker.postMessage({ fData: pixelContainerRef.value[0].clientWidth - 10 - 10, fNum: null, eType: "resetMaxWidth" });
-            });
-        }
-    });
+    // EventAdaptor.Listener((msg) => {
+    //     if (msg === "resetMaxWidth") {
+    //         nextTick(() => {
+    //             pixelWorker.postMessage({ fData: pixelContainerRef.value[0].clientWidth - 10 - 10, fNum: null, eType: "resetMaxWidth" });
+    //         });
+    //     }
+    // });
 });
 </script>
 
 <template>
-    <div class="motionrugs-container">
-        <Pixel></Pixel>
+    <div class="motionrugs-container" ref="pixelContainerRef">
+        <canvas id="canvas"></canvas>
     </div>
 </template>
 

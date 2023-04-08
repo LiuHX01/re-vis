@@ -3,8 +3,8 @@ class MotionRugsProcess {
         this.baseData = [];
         this.lastFnum = -1; // 上一次的fNum
         this.bufBaseData = {}; // key: fNum, value: fData
-        this.strategys = ["HilbertOrder", "zOrder"];
-        this.features = ["Velocity", "Acceleration"];
+        this.strategys = ["HilbertOrder"];
+        this.features = ["Velocity"];
         // 每个key是feature-straegy str，value是一个列表，列表中的元素是一个对象，对象中包含了坐标、速度等信息
         this.orderedData = {};
         this.cnt = 0;
@@ -237,13 +237,8 @@ class MotionRugsProcess {
 const motionRugsProcess = new MotionRugsProcess();
 
 onmessage = (e) => {
-    const { fData, fNum, eType } = e.data;
+    const { fData, fNum, width } = e.data;
 
-    if (eType === "newData")
-        // 加入到baseData中
-        motionRugsProcess.newData(fData, fNum);
-    else if (eType === "resetMaxWidth") {
-        motionRugsProcess.pixelMaxWidth = parseInt(fData / 4);
-        console.log("resetMaxWidth", motionRugsProcess.pixelMaxWidth, fData);
-    }
+    motionRugsProcess.newData(fData, fNum);
+    motionRugsProcess.pixelMaxWidth = parseInt(width / 4);
 };
