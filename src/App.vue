@@ -53,6 +53,7 @@ onMounted(() => {
             const frameData = [];
             movers.forEach((mover) => {
                 if (nowFrame >= groupedData[mover].length) {
+                    frameData.push({ TrackID: mover, Time: -1, LongitudeGPS: -1, LatitudeGPS: -1, Velocity: -1, Acceleration: -1 });
                     return;
                 }
                 const data = groupedData[mover][nowFrame];
@@ -65,7 +66,7 @@ onMounted(() => {
                 nowFrame++;
             }
         }
-    }, 500);
+    }, 300);
 });
 </script>
 

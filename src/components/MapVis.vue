@@ -69,7 +69,6 @@ let mapController = null;
 class MapController {
     constructor() {
         this.baseMapsSwitcherPlugin();
-
         this.sidebarPlugin();
         this.toCenterPlugin();
     }
@@ -166,8 +165,9 @@ class Mover {
         this.prevListLength = 0;
         this.id = id;
         this.marker = null;
+        this.endMarker = null;
         this.seq = null;
-        this.moveDuration = 510;
+        this.moveDuration = 300;
     }
 
     newLoc(loc, frameNum, velocity, acceleration) {
@@ -181,30 +181,47 @@ class Mover {
             }
         }
 
+        if (this.endMarker) {
+            this.endMarker.remove();
+        }
         // 为了保证及时，如果上一个路径没有画完，下一个路径数据就来了，就直接画下一个路径
         // 另外为了避免乱序到达，如果当前路径数据的帧号比上一个路径数据的帧号小，就不画
-        this.marker = L.motion.polyline(
-            [this.locList[this.locList.length - 2], this.locList[this.locList.length - 1]],
-            {
-                color: "transparent",
-            },
-            {
-                auto: true,
-                duration: this.moveDuration,
-            },
-            {
-                removeOnEnd: true,
-                icon: L.icon({
-                    iconUrl: "/ugv.svg",
-                    iconSize: [16, 16],
-                }),
-            }
-        );
-        if (this.locList.length == 2 && this.locList.length != this.prevListLength) {
-            this.seq = L.motion.seq([this.marker]).addTo(map);
-        } else if (this.locList.length > 2 && this.locList.length != this.prevListLength) {
-            this.seq.addLayer(this.marker, true);
+        if (this.marker && this.marker.getMarkers()[0].getLatLng() != this.locList[this.locList.length - 2]) {
+            this.marker.remove();
         }
+        if (this.locList.length >= 2) {
+            this.marker = L.motion.polyline(
+                [this.locList[this.locList.length - 2], this.locList[this.locList.length - 1]],
+                {
+                    color: "transparent",
+                },
+                {
+                    auto: true,
+                    duration: this.moveDuration,
+                },
+                {
+                    removeOnEnd: true,
+                    showMarker: false,
+                    icon: L.icon({
+                        iconUrl: "/ugv.svg",
+                        iconSize: [16, 16],
+                    }),
+                }
+            );
+            this.marker.addTo(map);
+        }
+    }
+
+    newEndLoc() {
+        if (this.endMarker) {
+            return;
+        }
+        this.endMarker = L.marker(this.locList[this.locList.length - 1], {
+            icon: L.icon({
+                iconUrl: "/ugv.svg",
+                iconSize: [16, 16],
+            }),
+        }).addTo(map);
     }
 }
 
@@ -218,14 +235,20 @@ onMounted(() => {
     mapController = new MapController();
     DataAdaptor.Listener((data) => {
         const { fData, fNum } = data;
+
         fData.forEach((item) => {
-            const { TrackID, LatitudeGPS, LongitudeGPS, Velocity, Acceleration } = item;
-            const loc = [LatitudeGPS, LongitudeGPS];
-            if (TrackID in movers) {
-                movers[TrackID].newLoc(loc, fNum, Velocity, Acceleration);
+            const { Time, TrackID, LatitudeGPS, LongitudeGPS, Velocity, Acceleration } = item;
+
+            if (Time === -1) {
+                movers[TrackID].newEndLoc();
             } else {
-                movers[TrackID] = new Mover(TrackID);
-                movers[TrackID].newLoc(loc, fNum, Velocity, Acceleration);
+                const loc = [LatitudeGPS, LongitudeGPS];
+                if (TrackID in movers) {
+                    movers[TrackID].newLoc(loc, fNum, Velocity, Acceleration);
+                } else {
+                    movers[TrackID] = new Mover(TrackID);
+                    movers[TrackID].newLoc(loc, fNum, Velocity, Acceleration);
+                }
             }
         });
     });
@@ -269,7 +292,7 @@ const findMover = (id) => {
                                     </el-button>
                                 </div>
                             </template>
-                            <el-descriptions direction="vertical" :column="3" border>
+                            <el-descriptions direction="vertical" :column="3" :border="true">
                                 <el-descriptions-item label="当前帧号">{{ value.nowFrame }}</el-descriptions-item>
                                 <el-descriptions-item label="当前速度">
                                     {{ parseFloat(value.velocityList[value.nowFrame]).toFixed(2) }} km/h

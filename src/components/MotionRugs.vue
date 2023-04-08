@@ -36,14 +36,6 @@ onMounted(() => {
         const afterImgData = resizeImageData(imgData, imgData.width * resizeScale, imgData.height * resizeScale);
         cItem.ctx.putImageData(afterImgData, 0, 0);
     };
-
-    // EventAdaptor.Listener((msg) => {
-    //     if (msg === "resetMaxWidth") {
-    //         nextTick(() => {
-    //             pixelWorker.postMessage({ fData: pixelContainerRef.value[0].clientWidth - 10 - 10, fNum: null, eType: "resetMaxWidth" });
-    //         });
-    //     }
-    // });
 });
 </script>
 
