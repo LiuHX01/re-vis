@@ -8,7 +8,7 @@ class MotionRugsProcess {
         // 每个key是feature-straegy str，value是一个列表，列表中的元素是一个对象，对象中包含了坐标、速度等信息
         this.orderedData = {};
         this.cnt = 0;
-        this.redrawCnt = 6; // 每多少帧重绘一次
+        this.redrawCnt = 4; // 每多少帧重绘一次
 
         this.pixelMaxWidth = 2000;
 

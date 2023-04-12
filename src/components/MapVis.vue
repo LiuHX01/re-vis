@@ -23,6 +23,9 @@ class MyMap {
         this.maxZoom = 17;
         this.minZoom = 12;
         this.nowCenter = [38.99670731327896, 117.30619668960573];
+        setTimeout(() => {
+            this.toCenter();
+        }, 2000);
     }
 
     createMap() {
