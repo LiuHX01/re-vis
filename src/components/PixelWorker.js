@@ -5,7 +5,7 @@ class MotionRugsProcess {
         this.bufBaseData = {}; // key: fNum, value: fData
         this.strategys = ["HilbertOrder"];
         this.features = ["Velocity"];
-        // 每个key是feature-straegy str，value是一个列表，列表中的元素是一个对象，对象中包含了坐标、速度等信息
+        // 每个key是feature-strategy str，value是一个列表，列表中的元素是一个对象，对象中包含了坐标、速度等信息
         this.orderedData = {};
         this.cnt = 0;
         this.redrawCnt = 4; // 每多少帧重绘一次
@@ -13,7 +13,18 @@ class MotionRugsProcess {
         this.pixelMaxWidth = 2000;
 
         this.deciles = {}; // 记录每个feature的deciles
-        this.colors = ["#313695", "#4575B4", "#74ADD1", "#ABD9E9", "#E0F3F8", "#FEE090", "#FDAE61", "#F46D43", "#D73027", "#A50026"];
+        this.colors = [
+            "#313695",
+            "#4575B4",
+            "#74ADD1",
+            "#ABD9E9",
+            "#E0F3F8",
+            "#FEE090",
+            "#FDAE61",
+            "#F46D43",
+            "#D73027",
+            "#A50026"
+        ];
     }
 
     newData(fData, fNum) {
@@ -229,16 +240,18 @@ class MotionRugsProcess {
                     strategy: strategy,
                     feature: feature,
                     imgData: imageData,
+                    orderedData: this.orderedData[strategy],
                 });
             });
         });
     }
 }
+
 const motionRugsProcess = new MotionRugsProcess();
 
 onmessage = (e) => {
-    const { fData, fNum, width } = e.data;
+    const {fData, fNum, width} = e.data;
 
     motionRugsProcess.newData(fData, fNum);
-    motionRugsProcess.pixelMaxWidth = parseInt(width / 4);
+    motionRugsProcess.pixelMaxWidth = parseInt((width) / 4);
 };

@@ -12,6 +12,7 @@ import { DataAdaptor, EventAdaptor } from "./tools/Adaptor.js";
 import MapVis from "./components/MapVis.vue";
 import MotionRugs from "./components/MotionRugs.vue";
 import csv from "csvtojson";
+import hotkeys from 'hotkeys-js';
 
 let groupedData = {}; // 根据TrackID分组的数据，保证组内数据是时间有序的，key为TrackID，value为其他属性
 let movers = []; // 所有的移动物体，此处为TrackID列表
@@ -38,6 +39,17 @@ const fetchRawData = async (URL) => {
 };
 fetchRawData(rawDataURL);
 
+
+let pauseFlag = false;
+const togglePauseFlag = () => {
+    pauseFlag = !pauseFlag;
+    if (pauseFlag) {
+        console.log("pause");
+    } else {
+        console.log("resume");
+    }
+};
+hotkeys('num_divide', togglePauseFlag);
 onMounted(() => {
     /*
         模拟流式数据，每隔一秒发送一帧数据
@@ -49,6 +61,9 @@ onMounted(() => {
         ]
     */
     setInterval(() => {
+        if (pauseFlag) {
+            return;
+        }
         if (groupedData !== []) {
             const frameData = [];
             movers.forEach((mover) => {
@@ -59,7 +74,7 @@ onMounted(() => {
                 const data = groupedData[mover][nowFrame];
                 frameData.push(data);
             });
-            if (frameData.length == 0) {
+            if (frameData.length === 0) {
                 return;
             } else {
                 DataAdaptor.Emitter({ fData: frameData, fNum: nowFrame });
@@ -73,15 +88,8 @@ onMounted(() => {
 <template>
     <div id="app">
         <MapVis></MapVis>
-        <div class="divider"></div>
-        <MotionRugs></MotionRugs>
     </div>
 </template>
 
 <style>
-.divider {
-    height: 1px;
-    width: 100%;
-    background-color: #d5dadc;
-}
 </style>
