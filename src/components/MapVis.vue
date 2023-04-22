@@ -8,17 +8,19 @@ import "leaflet-switch-basemap/src/L.switchBasemap.css";
 import "leaflet.motion/dist/leaflet.motion.js";
 import "leaflet-sidebar-v2/js/leaflet-sidebar.js";
 import "leaflet-sidebar-v2/css/leaflet-sidebar.css";
+
 import resizeImageData from "resize-image-data";
 
+let motionRugs = null;
 // ========================= 地图自身 =========================
 let map = null;
 
 class MyMap {
     constructor() {
         this.zoom = 15;
-        this.maxZoom = 17;
-        this.minZoom = 12;
-        this.nowCenter = [36.055813, -86.673996];
+        this.maxZoom = 20;
+        this.minZoom = 10;
+        this.nowCenter = [36.111582, -86.713157];
     }
 
     createMap() {
@@ -171,6 +173,35 @@ class Mover {
             iconSize: [16, 16],
         });
         this.moveDuration = 500;
+
+        this.hasPolyLines = false;
+        this.maxPolyLineLength = 200;
+        this.polyLines = [];
+        this.colors = [
+            "#313695",
+            "#4575B4",
+            "#74ADD1",
+            "#ABD9E9",
+            "#E0F3F8",
+            "#FEE090",
+            "#FDAE61",
+            "#F46D43",
+            "#D73027",
+            "#A50026"
+        ];
+
+        this.contrastingColors = [
+            "#D6AB2F",
+            "#FFBD53",
+            "#FFCA86",
+            "#ABD9E9",
+            "#FFDDB9",
+            "#FEE090",
+            "#6E74AF",
+            "#2FAB6C",
+            "#1EA72F",
+            "#3A9D00"
+        ];
     }
 
     setFrameLength(newFrameLength) {
@@ -180,7 +211,6 @@ class Mover {
             this.accelerationList = this.accelerationList.slice(0, newFrameLength);
         }
         this.frameLength = newFrameLength;
-        console.log(`id: ${this.id}, setFrameLength: ${this.frameLength}`);
     }
 
     /**
@@ -232,6 +262,8 @@ class Mover {
         );
 
         this.marker.addTo(map);
+
+        this.drawPolyLines();
     }
 
     changeIcon(iconName) {
@@ -241,6 +273,49 @@ class Mover {
                 iconUrl: iconName,
                 iconSize: [24, 24],
             }));
+        }
+    }
+
+    setHasPolyLines(hasPolyLines) {
+        console.log(`id: ${this.id}, setHasPolyLines: ${hasPolyLines}`)
+        this.hasPolyLines = hasPolyLines;
+        if (!this.hasPolyLines) {
+            this.clearPolyLines();
+        }
+    }
+
+    clearPolyLines() {
+        console.log(`id: ${this.id}, clearPolyLines`)
+        this.polyLines.forEach(polyLine => {
+            polyLine.remove();
+        })
+        this.polyLines = [];
+    }
+
+    drawPolyLines() {
+        this.clearPolyLines();
+        if (!this.hasPolyLines) {
+            return;
+        }
+        for (let i = Math.max(0, this.locList.length - 2 - this.maxPolyLineLength); i < this.locList.length - 1; i++) {
+            // 找到这个id在motionRugs.orderedData[i]中的索引
+            let idx;
+            console.log(motionRugs.orderedData[i])
+            for (let tmp = 0; tmp < motionRugs.orderedData[i].length; tmp++) {
+                if (motionRugs.orderedData[i][tmp].TrackID === this.id) {
+                    idx = tmp;
+                    break;
+                }
+            }
+
+            const colorIdx = motionRugs.orderedData[i][idx].colorIdx;
+            const polyLine = L.polyline([this.locList[i], this.locList[i + 1]], {
+                color: this.colors[colorIdx],
+                weight: 4,
+                // stroke: false,
+            });
+            polyLine.addTo(map);
+            this.polyLines.push(polyLine);
         }
     }
 }
@@ -257,10 +332,39 @@ class MotionRugs {
 
         this.rawImageData = null;
         this.resizedImageData = null;
-        this.orderedData = null;
+        this.orderedData = [];
 
         this.hasMask = false;
         this.maskID = -1;
+
+        this.hasRecMask = false;
+        this.recMaskID = -1;
+        this.recMaskFrame = -1;
+        this.recMaskColorIdx = -1;
+        this.colors = [
+            "#313695",
+            "#4575B4",
+            "#74ADD1",
+            "#ABD9E9",
+            "#E0F3F8",
+            "#FEE090",
+            "#FDAE61",
+            "#F46D43",
+            "#D73027",
+            "#A50026"
+        ];
+        this.contrastingColors = [
+            "#D6AB2F",
+            "#FFBD53",
+            "#FFCA86",
+            "#ABD9E9",
+            "#FFDDB9",
+            "#FEE090",
+            "#6E74AF",
+            "#2FAB6C",
+            "#1EA72F",
+            "#3A9D00"
+        ];
     }
 
     updateData(orderedData, rawImageData) {
@@ -269,30 +373,44 @@ class MotionRugs {
         this.resizedImageData = resizeImageData(this.rawImageData, this.rawImageData.width * motionRugs.resizeScale, this.rawImageData.height * motionRugs.resizeScale)
         this.drawBase();
         this.drawSingleMask();
+        this.drawRecMask();
     }
 
     drawBase() {
+        if (this.resizedImageData === null) {
+            return;
+        }
         this.ctx.putImageData(this.resizedImageData, 0, 0);
     }
 
     clearMask() {
         this.hasMask = false;
         this.drawBase();
+        for (const [id, mover] of Object.entries(movers)) {
+            mover.setHasPolyLines(false);
+        }
     }
-    clickAndMask(id, frame) {
+
+    clickAndMask(id, frame, ev = "linear") {
         if (frame < 0 || frame >= this.orderedData.length) {
-            clearMask();
+            this.clearMask();
             return;
         }
         if (this.hasMask) {
             this.drawBase();
         }
-        this.hasMask = true;
-        this.maskID = this.orderedData[frame][id].TrackID;
-        this.drawSingleMask()
 
-        movers[this.maskID].changeIcon("/tju_logo.png");
-        findMover(this.maskID);
+        if (ev === "linear") {
+            this.hasMask = true;
+            this.maskID = this.orderedData[frame][id].TrackID;
+            this.drawSingleMask()
+            movers[this.maskID].changeIcon("/tju_logo.png");
+        } else if (ev === "rec") {
+            this.hasRecMask = true;
+            this.recMaskFrame = frame;
+            this.recMaskID = this.orderedData[frame][id].TrackID;
+            this.drawRecMask();
+        }
     }
 
 
@@ -300,7 +418,8 @@ class MotionRugs {
         if (!this.hasMask) {
             return;
         }
-
+        this.clearMask();
+        this.hasMask = true;
         for (let x = 0; x < this.orderedData.length; x++) {
             for (let y = 0; y < this.orderedData[x].length; y++) {
                 if (this.orderedData[x][y].TrackID === this.maskID) {
@@ -309,10 +428,58 @@ class MotionRugs {
                 }
             }
         }
+
+
+        for (let mover in movers) {
+            if (mover == this.maskID) {
+                if (!movers[this.maskID].hasPolyLines) {
+                    movers[this.maskID].setHasPolyLines(true);
+                }
+            }
+            else if (movers[mover].hasPolyLines) {
+                movers[mover].setHasPolyLines(false);
+            }
+        }
+
+    }
+
+    /**
+     * 以recMaskFrame列，recMaskID的位置为中心，在长宽(10*)范围的内部(一个正的矩形),找颜色idx和中心相差最多为1的点，用rgba(255,255,255,0.5)填充
+     */
+    drawRecMask() {
+        // 先清除之前的mask
+        if (!this.hasRecMask || this.recMaskFrame < 0 || this.recMaskFrame >= this.orderedData.length) {
+            return;
+        }
+        this.clearMask()
+
+        // 先以其为中心，绘制其周围的点
+        let xx = this.recMaskFrame;
+        let yy;
+        for (let i = 0; i < this.orderedData[xx].length; i++) {
+            if (this.orderedData[xx][i].TrackID === this.recMaskID) {
+                yy = i;
+                break;
+            }
+        }
+        for (let x = Math.max(0, this.recMaskFrame - 5); x <= Math.min(this.orderedData.length, this.recMaskFrame + 5); x++) {
+            for (let y = Math.max(0, yy - 3); y <= Math.min(this.orderedData[x].length, yy + 3); y++) {
+                // x,y点的colorIdx和xx,yy点的colorIdx相差最多为1
+                if (Math.abs(this.orderedData[x][y].colorIdx - this.orderedData[xx][yy].colorIdx) <= 1) {
+                    // this.ctx.fillStyle = "rgba(255,255,255,0.5)";
+                    this.ctx.fillStyle = this.contrastingColors[this.orderedData[xx][yy].colorIdx];
+                    this.ctx.fillRect(x * motionRugs.resizeScale, y * motionRugs.resizeScale, motionRugs.resizeScale, motionRugs.resizeScale);
+                }
+            }
+        }
+        // this.ctx.fillStyle = this.colors[this.orderedData[xx][yy].colorIdx];
+        this.ctx.fillStyle = "rgb(0,0,0)";
+        this.ctx.fillRect(xx * motionRugs.resizeScale, yy * motionRugs.resizeScale, motionRugs.resizeScale, motionRugs.resizeScale);
+
     }
 }
 
-let motionRugs = new MotionRugs();
+motionRugs = new MotionRugs();
 const pixelWorker = new Worker(new URL("./PixelWorker.js", import.meta.url));
 let pixelContainerRef = ref(null);
 // ========================= 数据监听 =========================
@@ -330,7 +497,7 @@ onMounted(() => {
                 movers[TrackID] = new Mover(TrackID);
                 movers[TrackID].setFrameLength(pixelContainerRef.value.clientWidth);
             }
-            if (Time !== -1) {
+            if (Time != -11) {
                 movers[TrackID].newData(loc, fNum, Velocity, Acceleration)
                 pixelWorker.postMessage({fData: fData, fNum: fNum, width: motionRugs.canvas.width});
             }
@@ -353,6 +520,7 @@ const findMover = (id) => {
 
     myMap.nowCenter = movers[id].locList[movers[id].locList.length - 1];
     map.panTo(movers[id].locList[movers[id].locList.length - 1]);
+    motionRugs.clickAndMask(id, 0);
 };
 
 const clkMotionRugs = (e) => {
@@ -366,6 +534,21 @@ const clkMotionRugs = (e) => {
 
 const clearMask = () => {
     motionRugs.clearMask();
+    // for (let mover in movers) {
+    //     if (movers[mover].hasPolyLines) {
+    //         movers[mover].setHasPolyLines(false);
+    //     }
+    // }
+    // motionRugs.hasRecMask = false;
+}
+
+const rclkMotionRugs = (e) => {
+    e.preventDefault();
+    const x = e.offsetX;
+    const y = e.offsetY;
+    const frameNum = Math.floor(x / motionRugs.resizeScale);
+    const trackID = Math.floor(y / motionRugs.resizeScale);
+    motionRugs.clickAndMask(trackID, frameNum, "rec");
 }
 </script>
 
@@ -429,7 +612,7 @@ const clearMask = () => {
     </div>
 
     <div class="motionrugs-container" ref="pixelContainerRef">
-        <canvas id="canvas" @click="clkMotionRugs" @dblclick="clearMask"></canvas>
+        <canvas id="canvas" @click="clkMotionRugs" @dblclick="clearMask" @click.right="rclkMotionRugs"></canvas>
     </div>
 </template>
 

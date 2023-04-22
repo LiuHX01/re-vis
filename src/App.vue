@@ -13,6 +13,8 @@ import MapVis from "./components/MapVis.vue";
 import MotionRugs from "./components/MotionRugs.vue";
 import csv from "csvtojson";
 import hotkeys from 'hotkeys-js';
+import { ElMessage } from 'element-plus'
+
 
 let groupedData = {}; // 根据TrackID分组的数据，保证组内数据是时间有序的，key为TrackID，value为其他属性
 let movers = []; // 所有的移动物体，此处为TrackID列表
@@ -37,19 +39,41 @@ const fetchRawData = async (URL) => {
         TrackID in groupedData ? groupedData[TrackID].push(item) : (groupedData[TrackID] = [item]);
     });
 };
-fetchRawData(rawDataURL);
 
+const fetchData = async () => {
+    for (let i = 0; i < 14; i++) {
+        const url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce${i}.csv`
+        const response = await fetch(url);
+        const text = await response.text();
+        let jsonObj = await csv().fromString(text);
+        // json只保留前501项
+        for (let [index, item] of jsonObj.entries()) {
+            item.TrackID = i;
+            item.Velocity = parseFloat(item.Velocity);
+            item.Acceleration = parseFloat(item.Acceleration);
+            item.LongitudeGPS = parseFloat(item.LongitudeGPS);
+            item.LatitudeGPS = parseFloat(item.LatitudeGPS);
+        }
+        movers.push(i);
+        groupedData[i] = jsonObj;
+    }
+};
+// fetchRawData(rawDataURL);
+fetchData()
 
 let pauseFlag = false;
 const togglePauseFlag = () => {
     pauseFlag = !pauseFlag;
     if (pauseFlag) {
         console.log("pause");
+        ElMessage('暂停')
     } else {
         console.log("resume");
+        ElMessage('继续')
     }
 };
-hotkeys('num_divide', togglePauseFlag);
+hotkeys('t', togglePauseFlag);
+
 onMounted(() => {
     /*
         模拟流式数据，每隔一秒发送一帧数据
@@ -61,21 +85,21 @@ onMounted(() => {
         ]
     */
     setInterval(() => {
-        if (pauseFlag) {
+        if (pauseFlag || Object.keys(groupedData).length !== 14) {
             return;
         }
         if (groupedData !== []) {
             const frameData = [];
             movers.forEach((mover) => {
                 if (nowFrame >= groupedData[mover].length) {
-                    frameData.push({ TrackID: mover, Time: -1, LongitudeGPS: -1, LatitudeGPS: -1, Velocity: -1, Acceleration: -1 });
+                    frameData.push({ TrackID: mover, Time: -11, LongitudeGPS: -1, LatitudeGPS: -1, Velocity: -1, Acceleration: -1 });
                     return;
                 }
                 const data = groupedData[mover][nowFrame];
                 frameData.push(data);
             });
             if (frameData.length === 0) {
-                return;
+                console.log("数据发送完毕")
             } else {
                 DataAdaptor.Emitter({ fData: frameData, fNum: nowFrame });
                 nowFrame++;
@@ -83,10 +107,11 @@ onMounted(() => {
         }
     }, 500);
 });
+
 </script>
 
 <template>
-    <div id="app">
+    <div id="app" @keyup.p="togglePauseFlag">
         <MapVis></MapVis>
     </div>
 </template>

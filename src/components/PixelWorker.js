@@ -8,7 +8,7 @@ class MotionRugsProcess {
         // 每个key是feature-strategy str，value是一个列表，列表中的元素是一个对象，对象中包含了坐标、速度等信息
         this.orderedData = {};
         this.cnt = 0;
-        this.redrawCnt = 4; // 每多少帧重绘一次
+        this.redrawCnt = 1; // 每多少帧重绘一次
 
         this.pixelMaxWidth = 2000;
 
@@ -210,12 +210,13 @@ class MotionRugsProcess {
 
     // 根据feature和value得到对应的颜色
     getFeatureColor(feature, value) {
-        for (let i = 0; i < this.deciles[feature].length; i++) {
+        let i = 0;
+        for (i; i < this.deciles[feature].length; i++) {
             if (value > this.deciles[feature][i] && value <= this.deciles[feature][i + 1]) {
-                return this.hex2rgb(this.colors[i]);
+                return this.colors[i];
             }
         }
-        return this.hex2rgb(this.colors[this.colors.length - 1]);
+        return this.colors[this.colors.length - 1];
     }
 
     generateImageData() {
@@ -229,6 +230,8 @@ class MotionRugsProcess {
                 for (let x = 0; x < width; x++) {
                     for (let y = 0; y < height; y++) {
                         let color = this.getFeatureColor(feature, parseFloat(this.orderedData[strategy][x][y][feature]));
+                        this.orderedData[strategy][x][y].colorIdx = this.colors.indexOf(color);
+                        color = this.hex2rgb(color)
                         const idx = 4 * (x + y * width);
                         imageData.data[idx] = color[0];
                         imageData.data[idx + 1] = color[1];
