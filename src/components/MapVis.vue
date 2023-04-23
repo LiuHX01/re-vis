@@ -821,7 +821,7 @@ const rclkMotionRugs = (e) => {
     </div>
 
     <div class="motionrugs-container" ref="pixelContainerRef">
-        <canvas id="canvas" @click="clkMotionRugs" @click.right="rclkMotionRugs"></canvas>
+        <canvas id="canvas" @click="clkMotionRugs" @click.right="rclkMotionRugs" @click.middle="motionRugs.clearAllMask"></canvas>
     </div>
 </template>
 
