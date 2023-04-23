@@ -11,9 +11,16 @@ import "leaflet-sidebar-v2/css/leaflet-sidebar.css";
 
 import resizeImageData from "resize-image-data";
 
-let motionRugs = null;
-// ========================= 地图自身 =========================
 let map = null;
+let myMap = null;
+let mapController = null;
+let movers = reactive({}); // key为TrackID，value为Mover对象
+let motionRugs = null;
+let motionRugsDataset = null;
+let pixelContainerRef = ref(null);
+
+// ========================= 地图自身 =========================
+
 
 class MyMap {
     constructor() {
@@ -49,7 +56,7 @@ class MyMap {
                         zoom: this.zoom,
                         maxZoom: this.maxZoom,
                         minZoom: this.minZoom,
-                    }).addTo(map),
+                    }),
                     icon: "/light.png",
                     name: "Light",
                 },
@@ -58,7 +65,7 @@ class MyMap {
                         zoom: this.zoom,
                         maxZoom: this.maxZoom,
                         minZoom: this.minZoom,
-                    }),
+                    }).addTo(map),
                     icon: "/dark.png",
                     name: "Dark",
                 },
@@ -96,10 +103,10 @@ class MyMap {
     }
 }
 
-let myMap = new MyMap();
+myMap = new MyMap();
 
 // ========================= 地图控制 =========================
-let mapController = null;
+
 
 class MapController {
     constructor() {
@@ -155,7 +162,7 @@ class MapController {
 }
 
 // ========================= 移动目标 =========================
-let movers = reactive({}); // key为TrackID，value为Mover对象
+
 class Mover {
     constructor(id) {
         this.startRealFrame = 0;
@@ -177,6 +184,11 @@ class Mover {
         this.hasPolyLines = false;
         this.maxPolyLineLength = 200;
         this.polyLines = [];
+
+        this.hasStaticPolyLines = false;
+        this.staticPolyLines = [];
+        this.staticMarkers = [];
+
         this.colors = [
             "#313695",
             "#4575B4",
@@ -188,19 +200,6 @@ class Mover {
             "#F46D43",
             "#D73027",
             "#A50026"
-        ];
-
-        this.contrastingColors = [
-            "#D6AB2F",
-            "#FFBD53",
-            "#FFCA86",
-            "#ABD9E9",
-            "#FFDDB9",
-            "#FEE090",
-            "#6E74AF",
-            "#2FAB6C",
-            "#1EA72F",
-            "#3A9D00"
         ];
     }
 
@@ -285,30 +284,29 @@ class Mover {
     }
 
     clearPolyLines() {
-        console.log(`id: ${this.id}, clearPolyLines`)
+        // console.log(`id: ${this.id}, clearPolyLines`)
         this.polyLines.forEach(polyLine => {
             polyLine.remove();
         })
         this.polyLines = [];
     }
 
-    drawPolyLines() {
-        this.clearPolyLines();
+    drawPolyLines(from = 0, to = this.locList.length - 1) {
         if (!this.hasPolyLines) {
             return;
         }
-        for (let i = Math.max(0, this.locList.length - 2 - this.maxPolyLineLength); i < this.locList.length - 1; i++) {
+        this.clearPolyLines();
+        for (let i = Math.max(from, this.locList.length - 1 - this.maxPolyLineLength); i < to; i++) {
             // 找到这个id在motionRugs.orderedData[i]中的索引
             let idx;
-            console.log(motionRugs.orderedData[i])
-            for (let tmp = 0; tmp < motionRugs.orderedData[i].length; tmp++) {
-                if (motionRugs.orderedData[i][tmp].TrackID === this.id) {
+            for (let tmp = 0; tmp < motionRugsDataset.orderedData[i].length; tmp++) {
+                if (motionRugsDataset.orderedData[i][tmp].TrackID === this.id) {
                     idx = tmp;
                     break;
                 }
             }
 
-            const colorIdx = motionRugs.orderedData[i][idx].colorIdx;
+            const colorIdx = motionRugsDataset.orderedData[i][idx].colorIdx;
             const polyLine = L.polyline([this.locList[i], this.locList[i + 1]], {
                 color: this.colors[colorIdx],
                 weight: 4,
@@ -317,6 +315,43 @@ class Mover {
             polyLine.addTo(map);
             this.polyLines.push(polyLine);
         }
+    }
+
+
+    addStaticPolyLine(frame) {
+        if (frame < 0 || frame >= this.locList.length - 1) {
+            return;
+        }
+        // 找到这个id在motionRugs.orderedData[i]中的索引
+        let idx;
+        for (let tmp = 0; tmp < motionRugsDataset.orderedData[frame].length; tmp++) {
+            if (motionRugsDataset.orderedData[frame][tmp].TrackID === this.id) {
+                idx = tmp;
+                break;
+            }
+        }
+
+        const colorIdx = motionRugsDataset.orderedData[frame][idx].colorIdx;
+        const polyLine = L.polyline([this.locList[frame], this.locList[frame + 1]], {
+            color: this.colors[colorIdx],
+            weight: 4,
+            // stroke: false,
+        });
+        polyLine.addTo(map);
+        this.staticPolyLines.push(polyLine);
+
+    }
+
+
+    clearStatic() {
+        this.staticPolyLines.forEach(polyLine => {
+            polyLine.remove();
+        })
+        this.staticPolyLines = [];
+        this.staticMarkers.forEach(marker => {
+            marker.remove();
+        })
+        this.staticMarkers = [];
     }
 }
 
@@ -327,20 +362,27 @@ class MotionRugs {
         this.canvas = null;
         this.ctx = null;
         this.resizeScale = 6;
-        this.features = ["Velocity"]; // 特征列表
-        this.strategies = ["HilbertOrder"]; // 策略列表
+
+        this.feature = "Velocity";
 
         this.rawImageData = null;
+        this.maskedImageData = null;
         this.resizedImageData = null;
-        this.orderedData = [];
 
-        this.hasMask = false;
-        this.maskID = -1;
+        this.hasLineMask = false;
+        this.lineMaskID = -1;
+        this.lineMaskSwitch = true;
 
         this.hasRecMask = false;
         this.recMaskID = -1;
+        this.recMaskYPos = -1;
         this.recMaskFrame = -1;
+        this.recMaskWidth = 3;
+        this.recMaskHeight = 2;
+        this.recMaskThreshold = 2;
         this.recMaskColorIdx = -1;
+        this.recMaskSwitch = true;
+
         this.colors = [
             "#313695",
             "#4575B4",
@@ -354,141 +396,318 @@ class MotionRugs {
             "#A50026"
         ];
         this.contrastingColors = [
-            "#D6AB2F",
-            "#FFBD53",
-            "#FFCA86",
-            "#ABD9E9",
-            "#FFDDB9",
-            "#FEE090",
-            "#6E74AF",
-            "#2FAB6C",
-            "#1EA72F",
-            "#3A9D00"
+            "#CEC96A",
+            "#BA8A4B",
+            "#8B522E",
+            "#542616",
+            "#1F0C07",
+            "#011F6F",
+            "#02519E",
+            "#0B92BC",
+            "#28CFD8",
+            "#5AFFD9"
         ];
     }
 
-    updateData(orderedData, rawImageData) {
-        this.orderedData = orderedData;
-        this.rawImageData = rawImageData;
-        this.resizedImageData = resizeImageData(this.rawImageData, this.rawImageData.width * motionRugs.resizeScale, this.rawImageData.height * motionRugs.resizeScale)
-        this.drawBase();
-        this.drawSingleMask();
-        this.drawRecMask();
-    }
+    updateData() {
+        this.generateRawImageData();
+        this.generateMaskedImageData();
 
-    drawBase() {
-        if (this.resizedImageData === null) {
-            return;
-        }
+        this.resizedImageData = resizeImageData(this.maskedImageData, this.maskedImageData.width * motionRugs.resizeScale, this.maskedImageData.height * motionRugs.resizeScale);
         this.ctx.putImageData(this.resizedImageData, 0, 0);
     }
 
-    clearMask() {
-        this.hasMask = false;
-        this.drawBase();
-        for (const [id, mover] of Object.entries(movers)) {
-            mover.setHasPolyLines(false);
+    generateRawImageData(feature = "Velocity") {
+        const tempImageData = new ImageData(motionRugsDataset.orderedData.length, motionRugsDataset.orderedData[0].length);
+        for (let x = 0; x < motionRugsDataset.orderedData.length; x++) {
+            for (let y = 0; y < motionRugsDataset.orderedData[x].length; y++) {
+                const colorIdx = this.getColorIdx(motionRugsDataset.orderedData[x][y][feature])
+                const color = this.colors[colorIdx];
+                const idx = (y * motionRugsDataset.orderedData.length + x) * 4;
+                tempImageData.data[idx] = parseInt(color.substring(1, 3), 16);
+                tempImageData.data[idx + 1] = parseInt(color.substring(3, 5), 16);
+                tempImageData.data[idx + 2] = parseInt(color.substring(5, 7), 16);
+                tempImageData.data[idx + 3] = 255;
+
+                motionRugsDataset.orderedData[x][y].colorIdx = colorIdx;
+            }
+        }
+
+        this.rawImageData = tempImageData;
+    }
+
+    getColorIdx = (featureValue) => {
+        if (featureValue < motionRugsDataset.deciles[0]) {
+            return 0;
+        } else if (featureValue >= motionRugsDataset.deciles[8]) {
+            return 9;
+        } else {
+            for (let i = 0; i <= 7; i++) {
+                if (featureValue >= motionRugsDataset.deciles[i] && featureValue < motionRugsDataset.deciles[i + 1]) {
+                    return i + 1;
+                }
+            }
         }
     }
 
-    clickAndMask(id, frame, ev = "linear") {
-        if (frame < 0 || frame >= this.orderedData.length) {
-            this.clearMask();
+    generateMaskedImageData() {
+        this.maskedImageData = this.rawImageData;
+
+        // this.clearAllMask();
+        if (this.addLineMask()) {
             return;
         }
-        if (this.hasMask) {
-            this.drawBase();
+        if (this.addRecMask()) {
+            return;
+        }
+    }
+
+
+    setHasLineMask(flag, frame = 0, pos = -1) {
+        this.hasLineMask = flag;
+        this.hasRecMask = false;
+        if (pos !== -1) {
+            this.lineMaskID = motionRugsDataset.orderedToID[frame][pos];
+            this.lineMaskSwitch = true;
+        } else {
+            this.lineMaskID = -1;
         }
 
-        if (ev === "linear") {
-            this.hasMask = true;
-            this.maskID = this.orderedData[frame][id].TrackID;
-            this.drawSingleMask()
-            movers[this.maskID].changeIcon("/tju_logo.png");
-        } else if (ev === "rec") {
-            this.hasRecMask = true;
+        for (let i = 0; i < Object.keys(movers).length; i++) {
+            movers[Object.keys(movers)[i]].setHasPolyLines(false);
+        }
+        if (this.hasLineMask) {
+            movers[this.lineMaskID].setHasPolyLines(flag);
+        }
+        this.updateData();
+    }
+
+    addLineMask() {
+        if (!this.hasLineMask) {
+            return false;
+        }
+        if (!this.lineMaskSwitch) {
+            this.lineMaskSwitch = true;
+            return true;
+        } else {
+            this.lineMaskSwitch = false;
+        }
+
+        for (let i = 0; i < motionRugsDataset.orderedData.length; i++) {
+            for (let j = 0; j < motionRugsDataset.orderedData[i].length; j++) {
+                if (motionRugsDataset.orderedData[i][j].TrackID === this.lineMaskID) {
+                    const idx = (j * motionRugsDataset.orderedData.length + i) * 4;
+                    const idxTop = ((j - 1) * motionRugsDataset.orderedData.length + i) * 4;
+                    const idxBottom = ((j + 1) * motionRugsDataset.orderedData.length + i) * 4;
+
+                    const colorIdx = this.getColorIdx(motionRugsDataset.orderedData[i][j][this.feature])
+
+                    this.maskedImageData.data[idx] = 0;
+                    this.maskedImageData.data[idx + 1] = 0;
+                    this.maskedImageData.data[idx + 2] = 0;
+                    this.maskedImageData.data[idx + 3] = 255;
+
+
+                    // this.maskedImageData.data[idx] = parseInt(this.contrastingColors[colorIdx].substring(1, 3), 16);
+                    // this.maskedImageData.data[idx + 1] = parseInt(this.contrastingColors[colorIdx].substring(3, 5), 16);
+                    // this.maskedImageData.data[idx + 2] = parseInt(this.contrastingColors[colorIdx].substring(5, 7), 16);
+                    // this.maskedImageData.data[idx + 3] = 255;
+                    //
+                    // if (j > 0) {
+                    //     this.maskedImageData.data[idxTop] = parseInt(this.contrastingColors[colorIdx].substring(1, 3), 16);
+                    //     this.maskedImageData.data[idxTop + 1] = parseInt(this.contrastingColors[colorIdx].substring(3, 5), 16);
+                    //     this.maskedImageData.data[idxTop + 2] = parseInt(this.contrastingColors[colorIdx].substring(5, 7), 16);
+                    //     this.maskedImageData.data[idxTop + 3] = 255;
+                    // }
+                    //
+                    // if (j < motionRugsDataset.orderedData[i].length - 1) {
+                    //     this.maskedImageData.data[idxBottom] = parseInt(this.contrastingColors[colorIdx].substring(1, 3), 16);
+                    //     this.maskedImageData.data[idxBottom + 1] = parseInt(this.contrastingColors[colorIdx].substring(3, 5), 16);
+                    //     this.maskedImageData.data[idxBottom + 2] = parseInt(this.contrastingColors[colorIdx].substring(5, 7), 16);
+                    //     this.maskedImageData.data[idxBottom + 3] = 255;
+                    // }
+                    break;
+                }
+            }
+        }
+        return true;
+    }
+
+    setHasRecMask(flag, frame = 0, pos = -1) {
+        this.hasRecMask = flag;
+        this.hasLineMask = false;
+        if (pos !== -1) {
+            this.recMaskID = motionRugsDataset.orderedToID[frame][pos];
             this.recMaskFrame = frame;
-            this.recMaskID = this.orderedData[frame][id].TrackID;
-            this.drawRecMask();
+            this.recMaskYPos = pos;
+            this.recMaskColorIdx = motionRugsDataset.orderedData[frame][pos].colorIdx;
+            this.recMaskSwitch = true;
+        } else {
+            this.recMaskID = -1;
+            this.recMaskFrame = -1;
+            for (let i = 0; i < Object.keys(movers).length; i++) {
+                movers[Object.keys(movers)[i]].clearStatic();
+            }
         }
+        this.updateData();
     }
 
-
-    drawSingleMask() {
-        if (!this.hasMask) {
-            return;
+    // TODO: 这里的颜色有问题
+    addRecMask() {
+        if (!this.hasRecMask) {
+            return false;
         }
-        this.clearMask();
-        this.hasMask = true;
-        for (let x = 0; x < this.orderedData.length; x++) {
-            for (let y = 0; y < this.orderedData[x].length; y++) {
-                if (this.orderedData[x][y].TrackID === this.maskID) {
-                    this.ctx.fillStyle = "rgb(0,0,0)";
-                    this.ctx.fillRect(x * motionRugs.resizeScale, y * motionRugs.resizeScale, motionRugs.resizeScale, motionRugs.resizeScale);
+
+        if (!this.recMaskSwitch) {
+            this.recMaskSwitch = true;
+            return true;
+        } else {
+            this.recMaskSwitch = false;
+        }
+
+        for (let i = 0; i < Object.keys(movers).length; i++) {
+            movers[Object.keys(movers)[i]].clearStatic();
+        }
+
+        const centerX = this.recMaskFrame;
+        const centerY = this.recMaskYPos;
+        const leftBound = Math.max(0, centerX - this.recMaskWidth);
+        const rightBound = Math.min(motionRugsDataset.orderedData.length - 1, centerX + this.recMaskWidth);
+        const topBound = Math.max(0, centerY - this.recMaskHeight);
+        const bottomBound = Math.min(motionRugsDataset.orderedData[centerX].length - 1, centerY + this.recMaskHeight);
+        for (let x = leftBound; x <= rightBound; x++) {
+            for (let y = topBound; y <= bottomBound; y++) {
+                // if (Math.abs(motionRugsDataset.orderedData[centerX][centerY].colorIdx - motionRugsDataset.orderedData[x][y].colorIdx) <= this.recMaskThreshold) {
+                const idx = (y * motionRugsDataset.orderedData.length + x) * 4;
+                // this.maskedImageData.data[idx] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(1, 3), 16);
+                // this.maskedImageData.data[idx + 1] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(3, 5), 16);
+                // this.maskedImageData.data[idx + 2] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(5, 7), 16);
+                this.maskedImageData.data[idx] = parseInt(this.colors[this.recMaskColorIdx].substring(1, 3), 16);
+                this.maskedImageData.data[idx + 1] = parseInt(this.colors[this.recMaskColorIdx].substring(3, 5), 16);
+                this.maskedImageData.data[idx + 2] = parseInt(this.colors[this.recMaskColorIdx].substring(5, 7), 16);
+                this.maskedImageData.data[idx + 3] = 255;
+                // }
+
+                try {
+                    movers[motionRugsDataset.orderedToID[x][y]].addStaticPolyLine(x);
+                } catch (e) {
+                    console.log(e, x, y, motionRugsDataset.orderedToID[x][y]);
                 }
             }
         }
 
-
-        for (let mover in movers) {
-            if (mover == this.maskID) {
-                if (!movers[this.maskID].hasPolyLines) {
-                    movers[this.maskID].setHasPolyLines(true);
-                }
-            }
-            else if (movers[mover].hasPolyLines) {
-                movers[mover].setHasPolyLines(false);
-            }
-        }
-
+        return true;
     }
 
-    /**
-     * 以recMaskFrame列，recMaskID的位置为中心，在长宽(10*)范围的内部(一个正的矩形),找颜色idx和中心相差最多为1的点，用rgba(255,255,255,0.5)填充
-     */
-    drawRecMask() {
-        // 先清除之前的mask
-        if (!this.hasRecMask || this.recMaskFrame < 0 || this.recMaskFrame >= this.orderedData.length) {
-            return;
-        }
-        this.clearMask()
-
-        // 先以其为中心，绘制其周围的点
-        let xx = this.recMaskFrame;
-        let yy;
-        for (let i = 0; i < this.orderedData[xx].length; i++) {
-            if (this.orderedData[xx][i].TrackID === this.recMaskID) {
-                yy = i;
-                break;
-            }
-        }
-        for (let x = Math.max(0, this.recMaskFrame - 5); x <= Math.min(this.orderedData.length, this.recMaskFrame + 5); x++) {
-            for (let y = Math.max(0, yy - 3); y <= Math.min(this.orderedData[x].length, yy + 3); y++) {
-                // x,y点的colorIdx和xx,yy点的colorIdx相差最多为1
-                if (Math.abs(this.orderedData[x][y].colorIdx - this.orderedData[xx][yy].colorIdx) <= 1) {
-                    // this.ctx.fillStyle = "rgba(255,255,255,0.5)";
-                    this.ctx.fillStyle = this.contrastingColors[this.orderedData[xx][yy].colorIdx];
-                    this.ctx.fillRect(x * motionRugs.resizeScale, y * motionRugs.resizeScale, motionRugs.resizeScale, motionRugs.resizeScale);
-                }
-            }
-        }
-        // this.ctx.fillStyle = this.colors[this.orderedData[xx][yy].colorIdx];
-        this.ctx.fillStyle = "rgb(0,0,0)";
-        this.ctx.fillRect(xx * motionRugs.resizeScale, yy * motionRugs.resizeScale, motionRugs.resizeScale, motionRugs.resizeScale);
-
+    clearAllMask() {
+        this.setHasLineMask(false);
+        this.setHasRecMask(false);
     }
+
 }
 
 motionRugs = new MotionRugs();
-const pixelWorker = new Worker(new URL("./PixelWorker.js", import.meta.url));
-let pixelContainerRef = ref(null);
+
+// ========================= Processor =========================
+class MotionRugsDataset {
+    constructor() {
+        this.baseData = [];
+        this.maxDataLength = 2000;
+        this.orderedData = [];
+        this.deciles = [];
+        this.orderedToID = [];
+    }
+
+    setMaxDataLength(maxDataLength) {
+        this.maxDataLength = maxDataLength;
+    }
+
+    newData(data) {
+        this.baseData.push(data);
+        if (this.baseData.length > this.maxDataLength) {
+            this.baseData.shift();
+        }
+        this.getOrderedData();
+        this.getDeciles();
+        motionRugs.updateData();
+    }
+
+    // 对这一frame的数据（这帧上的切片）进行排序
+    getOrderedData(strategyName = "zOrder", frame = this.baseData.length - 1) {
+        if (frame < 0 || frame >= this.baseData.length) {
+            return;
+        }
+        if (this.orderedData[frame]) {
+            return this.orderedData[frame];
+        }
+
+        if (strategyName === "zOrder") {
+            this.zOrder(frame);
+        }
+    }
+
+    zOrder(frame) {
+        const zOrderIndex = (lat, lon) => {
+            const BITS = 32; // 索引值的位数
+
+            // 将经度值和纬度值映射到[0, 2^BITS-1]的整数范围内
+            const latInt = Math.round((lat - 30) * (1 << (BITS - 10)));
+            const lonInt = Math.round((lon + 180) * (1 << (BITS - 9)));
+
+            let index = 0;
+            for (let i = 0; i < BITS / 2; i++) {
+                // 每次取一位经纬度坐标的二进制位，并将其交替组合成一个32位整数
+                const bitMask = 1 << (BITS - i * 2 - 1);
+                const latBit = latInt & bitMask ? 1 : 0;
+                const lonBit = lonInt & bitMask ? 1 : 0;
+                const interleavedBits = (latBit << 1) | lonBit;
+                index |= interleavedBits << (BITS - i * 2 - 2);
+            }
+            return index;
+        }
+        this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
+            return zOrderIndex(a.LatitudeGPS, a.LongitudeGPS) - zOrderIndex(b.LatitudeGPS, b.LongitudeGPS);
+        });
+
+        this.orderedToID[frame] = this.orderedData[frame].map((d) => {
+            return d.TrackID;
+        });
+    }
+
+
+    getDeciles(feature = "Velocity") {
+        const flattedData = this.baseData.flat();
+        flattedData.sort((a, b) => {
+            return a[feature] - b[feature];
+        });
+        for (let i = 1; i < 10; i++) {
+            this.deciles[i - 1] = flattedData[Math.floor(i / 10 * flattedData.length)][feature];
+        }
+    }
+
+}
+
+motionRugsDataset = new MotionRugsDataset();
 // ========================= 数据监听 =========================
+
+
 onMounted(() => {
     myMap.createMap();
     mapController = new MapController();
 
+    motionRugs.canvas = document.getElementById("canvas");
+    motionRugs.ctx = motionRugs.canvas.getContext("2d");
+    motionRugs.canvas.width = pixelContainerRef.value.clientWidth;
+    motionRugs.canvas.height = 14 * motionRugs.resizeScale;
+
+    motionRugsDataset.setMaxDataLength(pixelContainerRef.value.client)
+
     DataAdaptor.Listener((data) => {
         const {fData, fNum} = data;
+
+        if (fData[0].Time !== -11) {
+            motionRugsDataset.newData(fData);
+        }
 
         fData.forEach((item) => {
             const {Time, TrackID, LatitudeGPS, LongitudeGPS, Velocity, Acceleration} = item;
@@ -497,22 +716,11 @@ onMounted(() => {
                 movers[TrackID] = new Mover(TrackID);
                 movers[TrackID].setFrameLength(pixelContainerRef.value.clientWidth);
             }
-            if (Time != -11) {
+            if (Time !== -11) {
                 movers[TrackID].newData(loc, fNum, Velocity, Acceleration)
-                pixelWorker.postMessage({fData: fData, fNum: fNum, width: motionRugs.canvas.width});
             }
         });
     });
-
-    motionRugs.canvas = document.getElementById("canvas");
-    motionRugs.ctx = motionRugs.canvas.getContext("2d");
-    motionRugs.canvas.width = pixelContainerRef.value.clientWidth;
-    motionRugs.canvas.height = 84;
-
-    pixelWorker.onmessage = (e) => {
-        const {strategy, feature, imgData, orderedData} = e.data;
-        motionRugs.updateData(orderedData, imgData);
-    };
 });
 
 const findMover = (id) => {
@@ -520,35 +728,36 @@ const findMover = (id) => {
 
     myMap.nowCenter = movers[id].locList[movers[id].locList.length - 1];
     map.panTo(movers[id].locList[movers[id].locList.length - 1]);
-    motionRugs.clickAndMask(id, 0);
 };
 
 const clkMotionRugs = (e) => {
-    const x = e.offsetX;
-    const y = e.offsetY;
+    const x = e.offsetX - 1;
+    const y = e.offsetY - 1;
     const frameNum = Math.floor(x / motionRugs.resizeScale);
     const trackID = Math.floor(y / motionRugs.resizeScale);
-    motionRugs.clickAndMask(trackID, frameNum);
-    console.log(`clkMotionRugs: frameNum: ${frameNum}, trackID: ${trackID}, x: ${x}, y: ${y}`);
-}
 
-const clearMask = () => {
-    motionRugs.clearMask();
-    // for (let mover in movers) {
-    //     if (movers[mover].hasPolyLines) {
-    //         movers[mover].setHasPolyLines(false);
-    //     }
-    // }
-    // motionRugs.hasRecMask = false;
+    if (frameNum < 0 || frameNum >= motionRugsDataset.baseData.length) {
+        motionRugs.clearAllMask();
+    } else {
+        motionRugs.setHasLineMask(true, frameNum, trackID);
+        console.log(`clkMotionRugs: frameNum: ${frameNum}, trackID: ${trackID}, x: ${x}, y: ${y}`);
+    }
 }
 
 const rclkMotionRugs = (e) => {
     e.preventDefault();
-    const x = e.offsetX;
-    const y = e.offsetY;
+    const x = e.offsetX - 1;
+    const y = e.offsetY - 1;
     const frameNum = Math.floor(x / motionRugs.resizeScale);
     const trackID = Math.floor(y / motionRugs.resizeScale);
-    motionRugs.clickAndMask(trackID, frameNum, "rec");
+
+    if (frameNum < 0 || frameNum >= motionRugsDataset.baseData.length) {
+        motionRugs.clearAllMask();
+    } else {
+        motionRugs.setHasRecMask(true, frameNum, trackID);
+        console.log(`rclkMotionRugs: frameNum: ${frameNum}, trackID: ${trackID}, x: ${x}, y: ${y}`);
+
+    }
 }
 </script>
 
@@ -612,7 +821,7 @@ const rclkMotionRugs = (e) => {
     </div>
 
     <div class="motionrugs-container" ref="pixelContainerRef">
-        <canvas id="canvas" @click="clkMotionRugs" @dblclick="clearMask" @click.right="rclkMotionRugs"></canvas>
+        <canvas id="canvas" @click="clkMotionRugs" @click.right="rclkMotionRugs"></canvas>
     </div>
 </template>
 

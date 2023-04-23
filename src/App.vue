@@ -23,6 +23,7 @@ let nowFrame = 0; // 当前帧数
 const rawDataURL = "https://raw.githubusercontent.com/LiuHX01/DataSets/main/merge_500.csv";
 
 const fetchRawData = async (URL) => {
+
     const response = await fetch(URL);
     const text = await response.text();
     const jsonObj = await csv().fromString(text);
@@ -40,13 +41,34 @@ const fetchRawData = async (URL) => {
     });
 };
 
+const urls = [
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce0.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce1.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce2.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce3.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce4.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce5.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce6.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce7.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce8.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce9.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce10.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce11.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce12.csv`,
+    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce13.csv`
+]
 const fetchData = async () => {
+    // 另一种方法
+    // const promises = urls.map((url, index) => fetch(url).then(response => response.text().then(text => ({index, text}))));
+    // const results = await Promise.all(promises);
+    // results.sort((a, b) => a.index - b.index); // 根据索引排序
+    // console.log(results.map(result => result.text));
+
     for (let i = 0; i < 14; i++) {
         const url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce${i}.csv`
         const response = await fetch(url);
         const text = await response.text();
         let jsonObj = await csv().fromString(text);
-        // json只保留前501项
         for (let [index, item] of jsonObj.entries()) {
             item.TrackID = i;
             item.Velocity = parseFloat(item.Velocity);
@@ -56,9 +78,9 @@ const fetchData = async () => {
         }
         movers.push(i);
         groupedData[i] = jsonObj;
+        console.log(`第${i}个文件已经加载完毕`)
     }
 };
-// fetchRawData(rawDataURL);
 fetchData()
 
 let pauseFlag = false;

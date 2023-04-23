@@ -1,3 +1,4 @@
+let cnt = 0;
 class MotionRugsProcess {
     constructor() {
         this.baseData = [];
@@ -245,6 +246,10 @@ class MotionRugsProcess {
                     imgData: imageData,
                     orderedData: this.orderedData[strategy],
                 });
+                if(cnt === 1) {
+                    console.timeEnd('process');
+                    cnt++;
+                }
             });
         });
     }
@@ -253,7 +258,11 @@ class MotionRugsProcess {
 const motionRugsProcess = new MotionRugsProcess();
 
 onmessage = (e) => {
-    const {fData, fNum, width} = e.data;
+    if (cnt === 0) {
+        cnt++;
+        console.time('process')
+    }
+    const {fData, fNum, width} = e.data[0];
 
     motionRugsProcess.newData(fData, fNum);
     motionRugsProcess.pixelMaxWidth = parseInt((width) / 4);
