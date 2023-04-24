@@ -410,7 +410,7 @@ class MotionRugs {
     }
 
     updateData() {
-        this.generateRawImageData();
+        this.generateRawImageData(this.feature);
         this.generateMaskedImageData();
 
         this.resizedImageData = resizeImageData(this.maskedImageData, this.maskedImageData.width * motionRugs.resizeScale, this.maskedImageData.height * motionRugs.resizeScale);
@@ -616,6 +616,11 @@ class MotionRugsDataset {
         this.orderedData = [];
         this.deciles = [];
         this.orderedToID = [];
+
+        this.strategyName = "geoHashOrder";
+        this.featureName = "Velocity";
+
+        this.idxxx = [];
     }
 
     setMaxDataLength(maxDataLength) {
@@ -627,8 +632,8 @@ class MotionRugsDataset {
         if (this.baseData.length > this.maxDataLength) {
             this.baseData.shift();
         }
-        this.getOrderedData();
-        this.getDeciles();
+        this.getOrderedData(this.strategyName);
+        this.getDeciles(this.featureName);
         motionRugs.updateData();
     }
 
@@ -642,12 +647,22 @@ class MotionRugsDataset {
         }
 
         if (strategyName === "zOrder") {
+            // console.time("zOrder");
             this.zOrder(frame);
+            // console.timeEnd("zOrder");
+        } else if (strategyName === "hilbertOrder") {
+            // console.time("hilbertOrder");
+            this.hilbertOrder(frame);
+            // console.timeEnd("hilbertOrder");
+        } else if (strategyName === "geoHashOrder") {
+            // console.time("geoHashOrder");
+            this.geoHashOrder(frame);
+            // console.timeEnd("geoHashOrder");
         }
     }
 
     zOrder(frame) {
-        const zOrderIndex = (lat, lon) => {
+        const zOrderIndex = (lat, lon, id = -1) => {
             const BITS = 32; // 索引值的位数
 
             // 将经度值和纬度值映射到[0, 2^BITS-1]的整数范围内
@@ -663,10 +678,22 @@ class MotionRugsDataset {
                 const interleavedBits = (latBit << 1) | lonBit;
                 index |= interleavedBits << (BITS - i * 2 - 2);
             }
+            // if (frame === 0) {
+            //     this.idxxx.push([id, index]);
+            //     this.idxxx.sort((a, b) => (a[1] - b[1]))
+            //     // 去重
+            //     for (let i = 0; i < this.idxxx.length - 1; i++) {
+            //         if (this.idxxx[i][1] === this.idxxx[i + 1][1]) {
+            //             this.idxxx.splice(i, 1);
+            //             i--;
+            //         }
+            //     }
+            //     console.log(this.idxxx.sort((a, b) => (a[1] - b[1])));
+            // }
             return index;
         }
         this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
-            return zOrderIndex(a.LatitudeGPS, a.LongitudeGPS) - zOrderIndex(b.LatitudeGPS, b.LongitudeGPS);
+            return zOrderIndex(a.LatitudeGPS, a.LongitudeGPS, a.TrackID) - zOrderIndex(b.LatitudeGPS, b.LongitudeGPS, b.TrackID);
         });
 
         this.orderedToID[frame] = this.orderedData[frame].map((d) => {
@@ -674,6 +701,120 @@ class MotionRugsDataset {
         });
     }
 
+    hilbertOrder(frame) {
+        const hilbertCurveIndex = (lat, lon, id = -1) => {
+            lat = lat * 2000;
+            lon = lon * 2000;
+
+            const n = 65536; // 网格数量
+            const latRange = [90, -90]; // 纬度范围
+            const lonRange = [-180, 180]; // 经度范围
+
+            // 将经纬度转换为网格索引
+            const latIndex = Math.floor(((lat - latRange[1]) / (latRange[0] - latRange[1])) * n);
+            const lonIndex = Math.floor(((lon - lonRange[0]) / (lonRange[1] - lonRange[0])) * n);
+
+            // 将网格索引转换为希尔伯特曲线索引
+            let index = 0;
+            let mask = 1 << 15;
+            for (let i = 0; i < 16; i++) {
+                const hX = (latIndex & mask) > 0 ? 1 : 0;
+                const hY = (lonIndex & mask) > 0 ? 1 : 0;
+                index += mask * ((3 * hX) ^ hY);
+                mask >>= 1;
+            }
+            mask = 1 << 31;
+            for (let i = 16; i < 32; i++) {
+                const hX = (latIndex & mask) > 0 ? 1 : 0;
+                const hY = (lonIndex & mask) > 0 ? 1 : 0;
+                index += mask * ((3 * hX) ^ hY);
+                mask >>= 1;
+            }
+// if (frame === 0) {
+//                 this.idxxx.push([id, index]);
+//                 this.idxxx.sort((a, b) => (a[1] - b[1]))
+//                 // 去重
+//                 for (let i = 0; i < this.idxxx.length - 1; i++) {
+//                     if (this.idxxx[i][1] === this.idxxx[i + 1][1]) {
+//                         this.idxxx.splice(i, 1);
+//                         i--;
+//                     }
+//                 }
+//                 console.log(this.idxxx.sort((a, b) => (a[1] - b[1])));
+//             }
+            return index;
+        }
+
+        this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
+            return hilbertCurveIndex(a.LatitudeGPS, a.LongitudeGPS, a.TrackID) - hilbertCurveIndex(b.LatitudeGPS, b.LongitudeGPS, b.TrackID);
+        });
+
+        this.orderedToID[frame] = this.orderedData[frame].map((d) => {
+            return d.TrackID;
+        });
+    }
+
+    geoHashOrder(frame) {
+        // 将经纬度转换为索引值
+        const latLngToIndex = (lat, lng, id = -1) => {
+            const LAT_RATIO = 1000000;
+            const LNG_RATIO = 1000000;
+
+            // 将经度和纬度转换为整数
+            const latInt = Math.round(lat * LAT_RATIO);
+            const lngInt = Math.round(lng * LNG_RATIO);
+
+            // 将经度和纬度的整数值转换为二进制并拼接起来
+            const binStr = (latInt >>> 0).toString(2).padStart(32, "0") + (lngInt >>> 0).toString(2).padStart(32, "0");
+
+            // 将二进制字符串从左到右每两位分割成一组，将每组转换为一个十进制数字
+            const index = [];
+            for (let i = 0; i < binStr.length; i += 2) {
+                const group = binStr.slice(i, i + 2);
+                index.push(parseInt(group, 2));
+            }
+
+            // if (frame === 0) {
+            //     this.idxxx.push(index);
+            //
+            //     let hasDel = true;
+            //     while (hasDel) {
+            //         hasDel = false;
+            //         for (let i = 0; i < this.idxxx.length - 1; i++) {
+            //             if (this.idxxx[i].join("") === this.idxxx[i + 1].join("")) {
+            //                 this.idxxx.splice(i, 1);
+            //                 i--;
+            //                 hasDel = true;
+            //             }
+            //         }
+            //     }
+            //
+            //     console.log(this.idxxx.sort((a, b) => (a[1] - b[1])));
+            // }
+            return index;
+        }
+
+        // 比较两个经纬度索引值的大小
+        const compareLatLngIndex = (index1, index2) => {
+            for (let i = 0; i < 32; i++) {
+                // 32 是经纬度索引值的长度
+                if (index1[i] === index2[i]) {
+                    continue;
+                } else {
+                    return index1[i] > index2[i] ? 1 : -1;
+                }
+            }
+            return 0;
+        }
+
+        this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
+            return compareLatLngIndex(latLngToIndex(a.LatitudeGPS, a.LongitudeGPS, a.TrackID), latLngToIndex(b.LatitudeGPS, b.LongitudeGPS, b.TrackID));
+        });
+
+        this.orderedToID[frame] = this.orderedData[frame].map((d) => {
+            return d.TrackID;
+        });
+    }
 
     getDeciles(feature = "Velocity") {
         const flattedData = this.baseData.flat();
@@ -787,7 +928,7 @@ const rclkMotionRugs = (e) => {
                         <el-card class="mover-card">
                             <template #header>
                                 <div class="mover-card-header">
-                                    <span class="mover-card-title"> 设备编号：{{ parseInt(key) }} </span>
+                                    <span class="mover-card-title" :style="{ color:`${movers[key].hasPolyLines  ? 'green' : (movers[key].staticPolyLines.length !== 0 ? 'blue' : 'black')}` }"> 设备编号：{{ parseInt(key) }} </span>
                                     <el-button type="primary" @click="findMover(key)" circle>
                                         <img src="/position-white.svg" width="14" height="14" alt=""/>
                                     </el-button>
@@ -823,7 +964,8 @@ const rclkMotionRugs = (e) => {
     </div>
 
     <div class="motionrugs-container" ref="pixelContainerRef" v-loading="motionRugsDataset.baseData.length === 0">
-        <canvas id="canvas" @click="clkMotionRugs" @click.right="rclkMotionRugs" @click.middle="motionRugs.clearAllMask"></canvas>
+        <canvas id="canvas" @click="clkMotionRugs" @click.right="rclkMotionRugs"
+                @click.middle="motionRugs.clearAllMask"></canvas>
     </div>
 </template>
 

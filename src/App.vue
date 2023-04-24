@@ -96,6 +96,8 @@ const togglePauseFlag = () => {
 };
 hotkeys('t', togglePauseFlag);
 
+
+let rate = 1;
 onMounted(() => {
     /*
         模拟流式数据，每隔一秒发送一帧数据
@@ -117,7 +119,14 @@ onMounted(() => {
                     frameData.push({ TrackID: mover, Time: -11, LongitudeGPS: -1, LatitudeGPS: -1, Velocity: -1, Acceleration: -1 });
                     return;
                 }
-                const data = groupedData[mover][nowFrame];
+
+
+                let data = groupedData[mover][nowFrame];
+
+                // 36.109676 -86.721864 过了这个位置开始往左下走(原来是往右下走)
+
+
+
                 frameData.push(data);
             });
             if (frameData.length === 0) {
