@@ -739,6 +739,7 @@ const clkMotionRugs = (e) => {
     if (frameNum < 0 || frameNum >= motionRugsDataset.baseData.length) {
         motionRugs.clearAllMask();
     } else {
+        motionRugs.setHasRecMask(false);
         motionRugs.setHasLineMask(true, frameNum, trackID);
         console.log(`clkMotionRugs: frameNum: ${frameNum}, trackID: ${trackID}, x: ${x}, y: ${y}`);
     }
@@ -754,6 +755,7 @@ const rclkMotionRugs = (e) => {
     if (frameNum < 0 || frameNum >= motionRugsDataset.baseData.length) {
         motionRugs.clearAllMask();
     } else {
+        motionRugs.setHasLineMask(false);
         motionRugs.setHasRecMask(true, frameNum, trackID);
         console.log(`rclkMotionRugs: frameNum: ${frameNum}, trackID: ${trackID}, x: ${x}, y: ${y}`);
 
@@ -820,7 +822,7 @@ const rclkMotionRugs = (e) => {
         </div>
     </div>
 
-    <div class="motionrugs-container" ref="pixelContainerRef">
+    <div class="motionrugs-container" ref="pixelContainerRef" v-loading="motionRugsDataset.baseData.length === 0">
         <canvas id="canvas" @click="clkMotionRugs" @click.right="rclkMotionRugs" @click.middle="motionRugs.clearAllMask"></canvas>
     </div>
 </template>
