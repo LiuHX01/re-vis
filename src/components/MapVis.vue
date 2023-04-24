@@ -8,6 +8,7 @@ import "leaflet-switch-basemap/src/L.switchBasemap.css";
 import "leaflet.motion/dist/leaflet.motion.js";
 import "leaflet-sidebar-v2/js/leaflet-sidebar.js";
 import "leaflet-sidebar-v2/css/leaflet-sidebar.css";
+import 'leaflet-arrowheads';
 
 import resizeImageData from "resize-image-data";
 
@@ -19,6 +20,9 @@ let motionRugs = null;
 let motionRugsDataset = null;
 let pixelContainerRef = ref(null);
 
+const globalStrategy = "hilbertOrder";
+const globalFeature = "Velocity";
+const globalDebug = true;
 // ========================= 地图自身 =========================
 
 
@@ -201,6 +205,15 @@ class Mover {
             "#D73027",
             "#A50026"
         ];
+
+        this.debug = globalDebug
+        this.openOffset = false;
+        this.offsetLatitude = 0;
+        this.offsetLongitude = 0;
+        this.offsetLatitudeStep = 0.0000;
+        this.offsetLongitudeStep = 0.0002;
+
+
     }
 
     setFrameLength(newFrameLength) {
@@ -214,12 +227,25 @@ class Mover {
 
     /**
      * 当接收到新的数据时，调用此方法，保证数据量在一定的范围内，并且更新marker，[由App.vue保证到这里的数据都是按序的]
-     * @param loc {[number, number]} 位置
+     * @param loc[lat,lng] {[number, number]} 位置
      * @param frameNum {number} 帧号
      * @param velocity {number} 速度
      * @param acceleration {number} 加速度
      */
     newData(loc, frameNum, velocity, acceleration) {
+
+        if (loc[0] <= 36.109676 && loc[1] >= -86.721864 && this.debug) {
+            if (this.openOffset) {
+                loc[0] -= this.offsetLatitude;
+                loc[1] -= this.offsetLongitude;
+
+                this.offsetLatitude += this.offsetLatitudeStep;
+                this.offsetLongitude += this.offsetLongitudeStep;
+            } else {
+                this.openOffset = true;
+            }
+        }
+
         this.locList.push(loc);
         this.velocityList.push(velocity);
         this.accelerationList.push(acceleration);
@@ -280,6 +306,8 @@ class Mover {
         this.hasPolyLines = hasPolyLines;
         if (!this.hasPolyLines) {
             this.clearPolyLines();
+        } else {
+            this.drawPolyLines();
         }
     }
 
@@ -336,7 +364,7 @@ class Mover {
             color: this.colors[colorIdx],
             weight: 4,
             // stroke: false,
-        });
+        }).arrowheads();
         polyLine.addTo(map);
         this.staticPolyLines.push(polyLine);
 
@@ -363,7 +391,7 @@ class MotionRugs {
         this.ctx = null;
         this.resizeScale = 6;
 
-        this.feature = "Velocity";
+        this.feature = globalFeature;
 
         this.rawImageData = null;
         this.maskedImageData = null;
@@ -377,9 +405,9 @@ class MotionRugs {
         this.recMaskID = -1;
         this.recMaskYPos = -1;
         this.recMaskFrame = -1;
-        this.recMaskWidth = 3;
-        this.recMaskHeight = 2;
-        this.recMaskThreshold = 2;
+        this.recMaskWidth = 5;
+        this.recMaskHeight = 3;
+        this.recMaskThreshold = 1;
         this.recMaskColorIdx = -1;
         this.recMaskSwitch = true;
 
@@ -577,21 +605,21 @@ class MotionRugs {
         const bottomBound = Math.min(motionRugsDataset.orderedData[centerX].length - 1, centerY + this.recMaskHeight);
         for (let x = leftBound; x <= rightBound; x++) {
             for (let y = topBound; y <= bottomBound; y++) {
-                // if (Math.abs(motionRugsDataset.orderedData[centerX][centerY].colorIdx - motionRugsDataset.orderedData[x][y].colorIdx) <= this.recMaskThreshold) {
-                const idx = (y * motionRugsDataset.orderedData.length + x) * 4;
-                // this.maskedImageData.data[idx] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(1, 3), 16);
-                // this.maskedImageData.data[idx + 1] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(3, 5), 16);
-                // this.maskedImageData.data[idx + 2] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(5, 7), 16);
-                this.maskedImageData.data[idx] = parseInt(this.colors[this.recMaskColorIdx].substring(1, 3), 16);
-                this.maskedImageData.data[idx + 1] = parseInt(this.colors[this.recMaskColorIdx].substring(3, 5), 16);
-                this.maskedImageData.data[idx + 2] = parseInt(this.colors[this.recMaskColorIdx].substring(5, 7), 16);
-                this.maskedImageData.data[idx + 3] = 255;
-                // }
+                if (Math.abs(motionRugsDataset.orderedData[centerX][centerY].colorIdx - motionRugsDataset.orderedData[x][y].colorIdx) <= this.recMaskThreshold) {
+                    const idx = (y * motionRugsDataset.orderedData.length + x) * 4;
+                    // this.maskedImageData.data[idx] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(1, 3), 16);
+                    // this.maskedImageData.data[idx + 1] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(3, 5), 16);
+                    // this.maskedImageData.data[idx + 2] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(5, 7), 16);
+                    this.maskedImageData.data[idx] = parseInt(this.colors[this.recMaskColorIdx].substring(1, 3), 16);
+                    this.maskedImageData.data[idx + 1] = parseInt(this.colors[this.recMaskColorIdx].substring(3, 5), 16);
+                    this.maskedImageData.data[idx + 2] = parseInt(this.colors[this.recMaskColorIdx].substring(5, 7), 16);
+                    this.maskedImageData.data[idx + 3] = 255;
 
-                try {
-                    movers[motionRugsDataset.orderedToID[x][y]].addStaticPolyLine(x);
-                } catch (e) {
-                    console.log(e, x, y, motionRugsDataset.orderedToID[x][y]);
+                    try {
+                        movers[motionRugsDataset.orderedToID[x][y]].addStaticPolyLine(x);
+                    } catch (e) {
+                        console.log(e, x, y, motionRugsDataset.orderedToID[x][y]);
+                    }
                 }
             }
         }
@@ -617,8 +645,8 @@ class MotionRugsDataset {
         this.deciles = [];
         this.orderedToID = [];
 
-        this.strategyName = "geoHashOrder";
-        this.featureName = "Velocity";
+        this.strategyName = globalStrategy;
+        this.featureName = globalFeature;
 
         this.idxxx = [];
     }
@@ -869,8 +897,8 @@ const findMover = (id) => {
 
     myMap.nowCenter = movers[id].locList[movers[id].locList.length - 1];
     map.panTo(movers[id].locList[movers[id].locList.length - 1]);
-};
 
+};
 const clkMotionRugs = (e) => {
     const x = e.offsetX - 1;
     const y = e.offsetY - 1;
@@ -928,7 +956,10 @@ const rclkMotionRugs = (e) => {
                         <el-card class="mover-card">
                             <template #header>
                                 <div class="mover-card-header">
-                                    <span class="mover-card-title" :style="{ color:`${movers[key].hasPolyLines  ? 'green' : (movers[key].staticPolyLines.length !== 0 ? 'blue' : 'black')}` }"> 设备编号：{{ parseInt(key) }} </span>
+                                    <span class="mover-card-title"
+                                          :style="{ color:`${movers[key].hasPolyLines  ? 'green' : (movers[key].staticPolyLines.length !== 0 ? 'blue' : 'black')}` }"> 设备编号：{{
+                                        parseInt(key)
+                                        }} </span>
                                     <el-button type="primary" @click="findMover(key)" circle>
                                         <img src="/position-white.svg" width="14" height="14" alt=""/>
                                     </el-button>
