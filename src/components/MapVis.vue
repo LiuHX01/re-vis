@@ -1208,7 +1208,12 @@ class MotionRugsDataset {
     }
 
     setMaxDataLength(maxDataLength) {
-        this.maxDataLength = Math.floor(maxDataLength / 4);
+        this.maxDataLength = Math.floor(maxDataLength / motionRugs.resizeScale);
+        ElMessage({
+            message: "Max data length is set to " + this.maxDataLength,
+            type: "success",
+            duration: 1000
+        });
     }
 
     newData(data) {
