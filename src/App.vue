@@ -7,39 +7,19 @@
  * ! 能够支持请求的频繁程度，以及获得的数据是否能够保证实时性
  */
 
-import { onMounted, ref } from "vue";
-import { DataAdaptor, EventAdaptor } from "./tools/Adaptor.js";
+import {onMounted, ref} from "vue";
+import {DataAdaptor, EventAdaptor} from "./tools/Adaptor.js";
 import MapVis from "./components/MapVis.vue";
 import MotionRugs from "./components/MotionRugs.vue";
 import csv from "csvtojson";
 import hotkeys from 'hotkeys-js';
-import { ElMessage } from 'element-plus'
+import {ElMessage} from 'element-plus'
 
+const usedData = "I24"
 
 let groupedData = {}; // 根据TrackID分组的数据，保证组内数据是时间有序的，key为TrackID，value为其他属性
 let movers = []; // 所有的移动物体，此处为TrackID列表
 let nowFrame = 0; // 当前帧数
-
-const rawDataURL = "https://raw.githubusercontent.com/LiuHX01/DataSets/main/merge_500.csv";
-
-const fetchRawData = async (URL) => {
-
-    const response = await fetch(URL);
-    const text = await response.text();
-    const jsonObj = await csv().fromString(text);
-
-    jsonObj.forEach((item) => {
-        const { TrackID } = item;
-        if (!movers.includes(TrackID)) {
-            movers.push(TrackID);
-        }
-        item.LongitudeGPS = parseFloat(item.LongitudeGPS);
-        item.LatitudeGPS = parseFloat(item.LatitudeGPS);
-        item.Velocity = parseFloat(item.Velocity);
-        item.Acceleration = parseFloat(item.Acceleration);
-        TrackID in groupedData ? groupedData[TrackID].push(item) : (groupedData[TrackID] = [item]);
-    });
-};
 
 const urls = [
     `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce0.csv`,
@@ -64,8 +44,17 @@ const fetchData = async () => {
     // results.sort((a, b) => a.index - b.index); // 根据索引排序
     // console.log(results.map(result => result.text));
 
-    for (let i = 0; i < 14; i++) {
-        const url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce${i}.csv`
+    for (let i = 0; i < 3 + 11; i++) {
+        let url
+        if (usedData === "I24") {
+            url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce${i}.csv`
+        } else {
+            if (i < 3) {
+                url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/ship_data_${i}.csv`
+            } else if (i >= 3 && i < 3 + 11) {
+                url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/uav_data_${i - 3}.csv`
+            }
+        }
         const response = await fetch(url);
         const text = await response.text();
         let jsonObj = await csv().fromString(text);
@@ -75,10 +64,15 @@ const fetchData = async () => {
             item.Acceleration = parseFloat(item.Acceleration);
             item.LongitudeGPS = parseFloat(item.LongitudeGPS);
             item.LatitudeGPS = parseFloat(item.LatitudeGPS);
+            item.Type = parseInt(item.Type);
         }
         movers.push(i);
         groupedData[i] = jsonObj;
-        console.log(`第${i}个文件已经加载完毕`)
+        if (i === 3 + 11 - 1) {
+            console.log("数据加载完毕");
+            ElMessage('数据加载完毕')
+        }
+        console.log(`第${i + 1}个文件已经加载完毕`)
     }
 };
 fetchData()
@@ -109,14 +103,21 @@ onMounted(() => {
         ]
     */
     setInterval(() => {
-        if (pauseFlag || Object.keys(groupedData).length !== 14) {
+        if (pauseFlag || Object.keys(groupedData).length !== 11 + 3) {
             return;
         }
         if (groupedData !== []) {
             const frameData = [];
             movers.forEach((mover) => {
                 if (nowFrame >= groupedData[mover].length) {
-                    frameData.push({ TrackID: mover, Time: -11, LongitudeGPS: -1, LatitudeGPS: -1, Velocity: -1, Acceleration: -1 });
+                    frameData.push({
+                        TrackID: mover,
+                        Time: -11,
+                        LongitudeGPS: -1,
+                        LatitudeGPS: -1,
+                        Velocity: -1,
+                        Acceleration: -1
+                    });
                     return;
                 }
 
@@ -126,13 +127,12 @@ onMounted(() => {
                 // 36.109676 -86.721864 过了这个位置开始往左下走(原来是往右下走)
 
 
-
                 frameData.push(data);
             });
             if (frameData.length === 0) {
                 console.log("数据发送完毕")
             } else {
-                DataAdaptor.Emitter({ fData: frameData, fNum: nowFrame });
+                DataAdaptor.Emitter({fData: frameData, fNum: nowFrame});
                 nowFrame++;
             }
         }
