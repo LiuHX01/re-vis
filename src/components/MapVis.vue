@@ -1678,17 +1678,33 @@ const rclkMotionRugs = (e) => {
                                 </el-button>
                             </div>
                             <div>
-                                <el-button :style="{width: '100%'}" @click="eventProcessor.moversGo(item.idx)">
-                                    快速派遣
-                                </el-button>
+                                <el-popconfirm title="是否派遣设备？" confirm-button-text="确定"
+                                               cancel-button-text="取消"
+                                               @confirm="eventProcessor.moversGo(item.idx)">
+                                    <template #reference>
+                                        <el-button :style="{width: '100%'}">
+                                            快速派遣
+                                        </el-button>
+                                    </template>
+                                </el-popconfirm>
                             </div>
                             <div>
-                                <el-button :type="item.tag" :style="{width: '100%'}" @click="eventProcessor.finishEvent(item.idx)">
-                                    完成事件
-                                </el-button>
+                                <el-popconfirm title="完成这个事件？" confirm-button-text="确定"
+                                               cancel-button-text="取消"
+                                               @confirm="eventProcessor.finishEvent(item.idx)">
+                                    <template #reference>
+                                        <el-button :type="item.tag" :style="{width: '100%'}">
+                                            完成事件
+                                        </el-button>
+                                    </template>
+                                </el-popconfirm>
                             </div>
                         </el-card>
                     </div>
+                </div>
+
+                <div class="leaflet-sidebar-pane" id="allControl">
+                    <h1 class="leaflet-sidebar-header">路径设置</h1>
                 </div>
             </div>
         </div>
