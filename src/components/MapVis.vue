@@ -20,6 +20,15 @@ let movers = reactive({}); // key为TrackID，value为Mover对象
 let motionRugs = null;
 let motionRugsDataset = null;
 let pixelContainerRef = ref(null);
+let events = reactive([{
+    show: true,
+    clr: '#a0cfff',
+    img: 'e0.jpeg',
+    msg: '交通拥堵',
+    pos: '高架环路',
+    loc: [36.110025, -86.722168],
+    tag: ""
+}])
 
 const globalStrategy = "zOrder";
 const globalFeature = "Velocity";
@@ -33,8 +42,8 @@ class MyMap {
         this.zoom = 16;
         this.maxZoom = 20;
         this.minZoom = 10;
-        // this.nowCenter = [36.111582, -86.713157];
-        this.nowCenter = [38.996791, 117.306754]
+        this.nowCenter = [36.111582, -86.713157];
+        // this.nowCenter = [38.996791, 117.306754]
 
         this.tmpMarker = null;
 
@@ -773,6 +782,7 @@ class Mover {
     }
 
     setFrameLength(newFrameLength) {
+        newFrameLength = Math.floor(newFrameLength / motionRugs.resizeScale)
         if (newFrameLength < this.frameLength) {
             this.locList = this.locList.slice(0, newFrameLength);
             this.velocityList = this.velocityList.slice(0, newFrameLength);
@@ -875,12 +885,13 @@ class Mover {
         this.polyLines = [];
     }
 
-    drawPolyLines(from = 0, to = this.locList.length - 1) {
+    drawPolyLines(from = 0, to = motionRugsDataset.orderedData.length - 1) {
         if (!this.hasPolyLines) {
             return;
         }
         this.clearPolyLines();
-        for (let i = Math.max(from, this.locList.length - 1 - this.maxPolyLineLength); i < to; i++) {
+        console.log(Math.max(from, motionRugsDataset.orderedData.length - 1 - this.maxPolyLineLength), Math.min(to, motionRugsDataset.orderedData.length - 1))
+        for (let i = Math.max(from, motionRugsDataset.orderedData.length - 1 - this.maxPolyLineLength); i < to; i++) {
             // 找到这个id在motionRugs.orderedData[i]中的索引
             let idx;
             for (let tmp = 0; tmp < motionRugsDataset.orderedData[i].length; tmp++) {
@@ -1421,6 +1432,24 @@ class MotionRugsDataset {
 }
 
 motionRugsDataset = new MotionRugsDataset();
+
+// ========================= events =========================
+class Event {
+    constructor(rank) {
+        this.locMarker = null;
+        this.loc = [];
+        this.eventType = "message";
+        this.rank = rank;
+    }
+
+    finish() {
+        if (this.locMarker) {
+            this.locMarker.remove();
+            this.locMarker = null;
+        }
+    }
+}
+
 // ========================= 数据监听 =========================
 
 
@@ -1435,23 +1464,28 @@ onMounted(() => {
 
     motionRugsDataset.setMaxDataLength(pixelContainerRef.value.clientWidth)
     DataAdaptor.Listener((data) => {
-        const {fData, fNum} = data;
+        const {type} = data;
+        if (type === "Trajectory") {
+            const {fData, fNum} = data;
 
-        if (fData[0].Time !== -11) {
-            motionRugsDataset.newData(fData);
+            if (fData[0].Time !== -11) {
+                motionRugsDataset.newData(fData);
+            }
+
+            fData.forEach((item) => {
+                const {Time, TrackID, LatitudeGPS, LongitudeGPS, Velocity, Acceleration, Type} = item;
+                const loc = [LatitudeGPS, LongitudeGPS];
+                if (!(TrackID in movers)) {
+                    movers[TrackID] = new Mover(TrackID, Type);
+                    movers[TrackID].setFrameLength(pixelContainerRef.value.clientWidth);
+                }
+                if (Time !== -11) {
+                    movers[TrackID].newData(loc, fNum, Velocity, Acceleration)
+                }
+            });
+        } else if (type === "Event") {
+            const {loc, rank} = data;
         }
-
-        fData.forEach((item) => {
-            const {Time, TrackID, LatitudeGPS, LongitudeGPS, Velocity, Acceleration, Type} = item;
-            const loc = [LatitudeGPS, LongitudeGPS];
-            if (!(TrackID in movers)) {
-                movers[TrackID] = new Mover(TrackID, Type);
-                movers[TrackID].setFrameLength(pixelContainerRef.value.clientWidth);
-            }
-            if (Time !== -11) {
-                movers[TrackID].newData(loc, fNum, Velocity, Acceleration)
-            }
-        });
     });
 });
 
@@ -1549,9 +1583,18 @@ const rclkMotionRugs = (e) => {
 
                 <div class="leaflet-sidebar-pane" id="allEvents">
                     <h1 class="leaflet-sidebar-header">事件监视</h1>
-                    <!--                    <div v-if="events.length === 0">-->
-                    <!--                        <el-empty description="暂无事件"></el-empty>-->
-                    <!--                    </div>-->
+                    <div v-for="item in events">
+                        <el-card v-if="item.show===true" class="event-card">
+                            <img :src="item.img" :style="{objectFit: 'fill', height: '200px', width: '100%'}" alt=""/>
+                            <el-descriptions direction="horizontal" :column="1" :border="true">
+                                <el-descriptions-item label="事件类型">
+                                    <el-tag type="" effect="dark">{{ item.msg }}</el-tag>
+                                </el-descriptions-item>
+                                <el-descriptions-item label="事件位置">{{ item.pos }}</el-descriptions-item>
+                                <el-descriptions-item label="事件坐标">{{ item.loc }}</el-descriptions-item>
+                            </el-descriptions>
+                        </el-card>
+                    </div>
                 </div>
             </div>
         </div>

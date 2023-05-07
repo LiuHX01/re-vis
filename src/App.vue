@@ -1,12 +1,4 @@
 <script setup>
-/**
- * TODO: 真实数据和此处应该有所差别，需要进一步确认，具体体现在
- * ! 得到的数据种类，除了经纬度等是否还有图片、视频等更加复杂的数据
- * ! 得到的数据是否保证有序、不重复、不缺失，如果能做到，是单个能做到还是相互之间都能做到
- * ! 得到的数据是单个mover还是打包了的所有mover的数据
- * ! 能够支持请求的频繁程度，以及获得的数据是否能够保证实时性
- */
-
 import {onMounted, ref} from "vue";
 import {DataAdaptor, EventAdaptor} from "./tools/Adaptor.js";
 import MapVis from "./components/MapVis.vue";
@@ -21,29 +13,7 @@ let groupedData = {}; // 根据TrackID分组的数据，保证组内数据是时
 let movers = []; // 所有的移动物体，此处为TrackID列表
 let nowFrame = 0; // 当前帧数
 
-const urls = [
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce0.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce1.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce2.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce3.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce4.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce5.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce6.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce7.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce8.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce9.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce10.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce11.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce12.csv`,
-    `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce13.csv`
-]
 const fetchData = async () => {
-    // 另一种方法
-    // const promises = urls.map((url, index) => fetch(url).then(response => response.text().then(text => ({index, text}))));
-    // const results = await Promise.all(promises);
-    // results.sort((a, b) => a.index - b.index); // 根据索引排序
-    // console.log(results.map(result => result.text));
-
     for (let i = 0; i < 3 + 11; i++) {
         let url
         if (usedData === "I24") {
@@ -64,12 +34,12 @@ const fetchData = async () => {
             item.Acceleration = parseFloat(item.Acceleration);
             item.LongitudeGPS = parseFloat(item.LongitudeGPS);
             item.LatitudeGPS = parseFloat(item.LatitudeGPS);
-            item.Type = parseInt(item.Type);
+            // item.Type = parseInt(item.Type);
+            item.Type = 1
         }
         movers.push(i);
         groupedData[i] = jsonObj;
         if (i === 3 + 11 - 1) {
-            console.log("数据加载完毕");
             ElMessage('数据加载完毕')
         }
         console.log(`第${i + 1}个文件已经加载完毕`)
@@ -90,8 +60,9 @@ const togglePauseFlag = () => {
 };
 hotkeys('t', togglePauseFlag);
 
+// Event : 36.073803, -86.694318
+// 100(交通拥堵): 36.109598, -86.722051
 
-let rate = 1;
 onMounted(() => {
     /*
         模拟流式数据，每隔一秒发送一帧数据
@@ -120,19 +91,18 @@ onMounted(() => {
                     });
                     return;
                 }
-
-
                 let data = groupedData[mover][nowFrame];
-
-                // 36.109676 -86.721864 过了这个位置开始往左下走(原来是往右下走)
-
-
                 frameData.push(data);
             });
             if (frameData.length === 0) {
                 console.log("数据发送完毕")
             } else {
-                DataAdaptor.Emitter({fData: frameData, fNum: nowFrame});
+                DataAdaptor.Emitter({fData: frameData, fNum: nowFrame, type: "Trajectory"});
+
+                if (nowFrame === 70) {
+                    DataAdaptor.Emitter({loc: [36.110025, -86.722168], rank: 3, type: "Event"});
+                }
+
                 nowFrame++;
             }
         }
