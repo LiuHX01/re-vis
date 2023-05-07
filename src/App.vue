@@ -99,7 +99,7 @@ onMounted(() => {
             } else {
                 DataAdaptor.Emitter({fData: frameData, fNum: nowFrame, type: "Trajectory"});
 
-                if (nowFrame === 3) {
+                if (nowFrame === 15) {
                     DataAdaptor.Emitter({
                         rank: 0.6,
                         img: 'e0.jpeg',
@@ -108,7 +108,7 @@ onMounted(() => {
                         loc: [36.110025, -86.722168],
                         type: "Event"
                     });
-                } else if (nowFrame === 10) {
+                } else if (nowFrame === 24) {
                     DataAdaptor.Emitter({
                         rank: 2.9,
                         img: 'e1.jpeg',
@@ -117,7 +117,7 @@ onMounted(() => {
                         loc: [36.10852, -86.721419],
                         type: "Event"
                     });
-                } else if (nowFrame === 20) {
+                } else if (nowFrame === 35) {
                     DataAdaptor.Emitter({
                         rank: 1.2,
                         img: 'e2.jpeg',

@@ -1437,7 +1437,7 @@ class EventProcessor {
             "#f89898",
         ]
         this.eventTag = [
-            "",
+            "primary",
             "warning",
             "danger",
         ]
@@ -1445,6 +1445,11 @@ class EventProcessor {
             "info",
             "warning",
             "error",
+        ]
+        this.btnTag = [
+            "primary",
+            "warning",
+            "danger",
         ]
         this.eventMarkers = {};
         this.gIdx = 0;
@@ -1466,12 +1471,17 @@ class EventProcessor {
             return b.rk - a.rk;
         });
 
-        this.eventMarkers[this.gIdx] = L.marker(loc).addTo(map).bindPopup(msg).openPopup();
+        this.eventMarkers[this.gIdx] = L.marker(loc, {
+            icon: L.icon({
+                iconUrl: (rank >= 2 ? '/dangerous.svg' : (rank >= 1 ? '/warning.svg' : '/info.svg')),
+                iconSize: [28, 28],
+            })
+        }).addTo(map).bindPopup(msg).openPopup();
         this.gIdx++;
         mapController.sidebar.open("allEvents");
         map.panTo(loc);
 
-        if (tempEvent.rk > 0) {
+        if (tempEvent.rk > 1) {
             ElMessage({
                 message: msg,
                 type: this.msgTag[Math.floor(rank)],
@@ -1499,6 +1509,7 @@ class EventProcessor {
                 break;
             }
         }
+        this.eventMarkers[idx].openPopup();
     }
 
     moversGo(idx) {
@@ -1672,7 +1683,7 @@ const rclkMotionRugs = (e) => {
                                 </el-button>
                             </div>
                             <div>
-                                <el-button :style="{width: '100%'}" @click="eventProcessor.finishEvent(item.idx)">
+                                <el-button :type="item.tag" :style="{width: '100%'}" @click="eventProcessor.finishEvent(item.idx)">
                                     完成事件
                                 </el-button>
                             </div>
