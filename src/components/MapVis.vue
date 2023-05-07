@@ -20,15 +20,8 @@ let movers = reactive({}); // key为TrackID，value为Mover对象
 let motionRugs = null;
 let motionRugsDataset = null;
 let pixelContainerRef = ref(null);
-let events = reactive([{
-    show: true,
-    clr: '#a0cfff',
-    img: 'e0.jpeg',
-    msg: '交通拥堵',
-    pos: '高架环路',
-    loc: [36.110025, -86.722168],
-    tag: ""
-}])
+let eventProcessor = null;
+let events = reactive([])
 
 const globalStrategy = "zOrder";
 const globalFeature = "Velocity";
@@ -664,6 +657,8 @@ class MyMap {
         }
         map.panTo(this.nowCenter, map.getZoom());
     }
+
+
 }
 
 myMap = new MyMap();
@@ -673,6 +668,7 @@ myMap = new MyMap();
 
 class MapController {
     constructor() {
+        this.sidebar = null;
         this.sidebarPlugin();
         this.toCenterPlugin();
     }
@@ -715,7 +711,7 @@ class MapController {
     }
 
     sidebarPlugin() {
-        L.control
+        this.sidebar = L.control
             .sidebar({
                 autopan: true,
                 container: "sidebar",
@@ -890,7 +886,6 @@ class Mover {
             return;
         }
         this.clearPolyLines();
-        console.log(Math.max(from, motionRugsDataset.orderedData.length - 1 - this.maxPolyLineLength), Math.min(to, motionRugsDataset.orderedData.length - 1))
         for (let i = Math.max(from, motionRugsDataset.orderedData.length - 1 - this.maxPolyLineLength); i < to; i++) {
             // 找到这个id在motionRugs.orderedData[i]中的索引
             let idx;
@@ -1434,22 +1429,95 @@ class MotionRugsDataset {
 motionRugsDataset = new MotionRugsDataset();
 
 // ========================= events =========================
-class Event {
-    constructor(rank) {
-        this.locMarker = null;
-        this.loc = [];
-        this.eventType = "message";
-        this.rank = rank;
+class EventProcessor {
+    constructor() {
+        this.eventColor = [
+            "#a0cfff",
+            "#f3d19e",
+            "#f89898",
+        ]
+        this.eventTag = [
+            "",
+            "warning",
+            "danger",
+        ]
+        this.msgTag = [
+            "info",
+            "warning",
+            "error",
+        ]
+        this.eventMarkers = {};
+        this.gIdx = 0;
     }
 
-    finish() {
-        if (this.locMarker) {
-            this.locMarker.remove();
-            this.locMarker = null;
+    newEvent(rank, img, msg, pos, loc) {
+        const tempEvent = {
+            idx: this.gIdx,
+            rk: Math.floor(rank),
+            clr: this.eventColor[Math.floor(rank)],
+            img: img,
+            msg: msg,
+            pos: pos,
+            loc: loc,
+            tag: this.eventTag[Math.floor(rank)],
+        }
+        events.push(tempEvent)
+        events.sort((a, b) => {
+            return b.rk - a.rk;
+        });
+
+        this.eventMarkers[this.gIdx] = L.marker(loc).addTo(map).bindPopup(msg).openPopup();
+        this.gIdx++;
+        mapController.sidebar.open("allEvents");
+        map.panTo(loc);
+
+        if (tempEvent.rk > 0) {
+            ElMessage({
+                message: msg,
+                type: this.msgTag[Math.floor(rank)],
+                duration: 0,
+                showClose: true,
+            });
+        }
+    }
+
+    finishEvent(idx) {
+        this.eventMarkers[idx].remove();
+        delete this.eventMarkers[idx];
+        for (let i = 0; i < events.length; i++) {
+            if (events[i].idx === idx) {
+                events.splice(i, 1);
+                break;
+            }
+        }
+    }
+
+    findEvent(idx) {
+        for (let i = 0; i < events.length; i++) {
+            if (events[i].idx === idx) {
+                map.panTo(events[i].loc);
+                break;
+            }
+        }
+    }
+
+    moversGo(idx) {
+        let loc;
+        for (let i = 0; i < events.length; i++) {
+            if (events[i].idx === idx) {
+                loc = events[i].loc;
+                break;
+            }
+        }
+
+        for (let i = 0; i < Object.keys(movers).length; i++) {
+            const mover = movers[Object.keys(movers)[i]];
+            mover.newData(loc, 0, 50, 1);
         }
     }
 }
 
+eventProcessor = new EventProcessor();
 // ========================= 数据监听 =========================
 
 
@@ -1484,7 +1552,8 @@ onMounted(() => {
                 }
             });
         } else if (type === "Event") {
-            const {loc, rank} = data;
+            const {rank, img, msg, pos, loc} = data;
+            eventProcessor.newEvent(rank, img, msg, pos, loc);
         }
     });
 });
@@ -1584,15 +1653,29 @@ const rclkMotionRugs = (e) => {
                 <div class="leaflet-sidebar-pane" id="allEvents">
                     <h1 class="leaflet-sidebar-header">事件监视</h1>
                     <div v-for="item in events">
-                        <el-card v-if="item.show===true" class="event-card">
+                        <el-card class="event-card">
                             <img :src="item.img" :style="{objectFit: 'fill', height: '200px', width: '100%'}" alt=""/>
                             <el-descriptions direction="horizontal" :column="1" :border="true">
-                                <el-descriptions-item label="事件类型">
-                                    <el-tag type="" effect="dark">{{ item.msg }}</el-tag>
+                                <el-descriptions-item label="类型">
+                                    <el-tag :type="item.tag" effect="dark">{{ item.msg }}</el-tag>
                                 </el-descriptions-item>
-                                <el-descriptions-item label="事件位置">{{ item.pos }}</el-descriptions-item>
-                                <el-descriptions-item label="事件坐标">{{ item.loc }}</el-descriptions-item>
+                                <el-descriptions-item label="位置">{{ item.pos }}</el-descriptions-item>
                             </el-descriptions>
+                            <div>
+                                <el-button :style="{width: '100%'}" @click="eventProcessor.findEvent(item.idx)">
+                                    定位
+                                </el-button>
+                            </div>
+                            <div>
+                                <el-button :style="{width: '100%'}" @click="eventProcessor.moversGo(item.idx)">
+                                    快速派遣
+                                </el-button>
+                            </div>
+                            <div>
+                                <el-button :style="{width: '100%'}" @click="eventProcessor.finishEvent(item.idx)">
+                                    完成事件
+                                </el-button>
+                            </div>
                         </el-card>
                     </div>
                 </div>
@@ -1635,5 +1718,10 @@ const rclkMotionRugs = (e) => {
 .motionrugs-container {
     width: 100%;
     background-color: #fafaf8;
+}
+
+.event-card {
+    margin-bottom: 10px;
+    margin-top: 10px;
 }
 </style>

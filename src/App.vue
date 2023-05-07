@@ -99,9 +99,35 @@ onMounted(() => {
             } else {
                 DataAdaptor.Emitter({fData: frameData, fNum: nowFrame, type: "Trajectory"});
 
-                if (nowFrame === 70) {
-                    DataAdaptor.Emitter({loc: [36.110025, -86.722168], rank: 3, type: "Event"});
+                if (nowFrame === 3) {
+                    DataAdaptor.Emitter({
+                        rank: 0.6,
+                        img: 'e0.jpeg',
+                        msg: '交通拥堵',
+                        pos: '高架环路',
+                        loc: [36.110025, -86.722168],
+                        type: "Event"
+                    });
+                } else if (nowFrame === 10) {
+                    DataAdaptor.Emitter({
+                        rank: 2.9,
+                        img: 'e1.jpeg',
+                        msg: '物体燃烧',
+                        pos: '小区内部',
+                        loc: [36.10852, -86.721419],
+                        type: "Event"
+                    });
+                } else if (nowFrame === 20) {
+                    DataAdaptor.Emitter({
+                        rank: 1.2,
+                        img: 'e2.jpeg',
+                        msg: '公路破坏',
+                        pos: '高速公路',
+                        loc: [36.106504, -86.719403],
+                        type: "Event"
+                    });
                 }
+
 
                 nowFrame++;
             }
