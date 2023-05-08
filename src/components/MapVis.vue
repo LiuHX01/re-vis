@@ -27,7 +27,8 @@ let paths = reactive([{
     name: "默认路径",
     activeDevice: ["无人机"],
     length: 2,
-    path: [[36.1115717, -86.7230948], [36.1112088, -86.7227895]]
+    path: [[36.1115717, -86.7230948], [36.1112088, -86.7227895]],
+    loopGo: false,
 }])
 
 const globalStrategy = "zOrder";
@@ -1015,6 +1016,7 @@ class PathController {
         this.pathForm = {
             name: "",
             activeDevice: ['无人机'],
+            loopGo: false,
         }
         this.showedPolyline = null;
     }
@@ -1024,7 +1026,12 @@ class PathController {
         map.on("click", (e) => {
             this.tempPath.push(e.latlng);
 
-            this.tempMarkers.push(L.marker(this.tempPath[this.tempPath.length - 1], {}).addTo(map));
+            this.tempMarkers.push(L.marker(this.tempPath[this.tempPath.length - 1], {
+                icon: L.icon({
+                    iconUrl: '/vite.svg',
+                    iconSize: [28, 28],
+                })
+            }).addTo(map));
             if (this.tempPath.length >= 2) {
                 this.tempPolyLines.push(L.polyline([this.tempPath[this.tempPath.length - 2], this.tempPath[this.tempPath.length - 1]], {
                     color: "#ff0000",
@@ -1040,11 +1047,15 @@ class PathController {
     }
 
     finishRecord() {
+        if (this.pathForm.loopGo && this.tempPath.length >= 2) {
+            this.tempPath.push(this.tempPath[0])
+        }
         paths.push({
             name: this.pathForm.name === "" ? "路径" + this.idx++ : this.pathForm.name,
             activeDevice: this.pathForm.activeDevice,
             length: this.tempPath.length,
             path: this.tempPath,
+            loopGo: this.pathForm.loopGo,
         })
         this.clearRecord()
     }
@@ -1307,6 +1318,9 @@ const rclkMotionRugs = (e) => {
                                 <el-button type="danger" @click="pathController.delLast()" plain>删除上一个点
                                 </el-button>
                             </el-form-item>
+                            <el-form-item label="循环执行">
+                                <el-switch v-model="pathController.pathForm.loopGo" />
+                            </el-form-item>
                             <el-form-item>
                                 <el-button type="primary" @click="pathController.finishRecord()">完成设置</el-button>
                                 <el-button @click="pathController.clearRecord()">取消设置</el-button>
@@ -1327,6 +1341,10 @@ const rclkMotionRugs = (e) => {
                                 </el-descriptions-item>
                                 <el-descriptions-item label="巡逻点数量">
                                     {{ item.path.length }}
+                                </el-descriptions-item>
+                                <el-descriptions-item label="循环执行">
+                                    <el-tag :type="item.loopGo === true ? 'success' : 'danger'"
+                                            effect="dark">{{ item.loopGo === true ? '是' : '否' }}</el-tag>
                                 </el-descriptions-item>
                             </el-descriptions>
                             <div :style="{width: '100%'}">
