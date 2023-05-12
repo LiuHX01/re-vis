@@ -17,7 +17,7 @@ const fetchData = async () => {
     for (let i = 0; i < 3 + 11; i++) {
         let url
         if (usedData === "I24") {
-            url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cutReduce${i}.csv`
+            url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/cut${i}.csv`
         } else {
             if (i < 3) {
                 url = `https://raw.githubusercontent.com/LiuHX01/DataSets/main/ship_data_${i}.csv`
@@ -135,7 +135,7 @@ onMounted(() => {
             }
         }, 0)
 
-    }, 500);
+    }, 200);
 });
 
 </script>

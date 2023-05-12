@@ -12,6 +12,8 @@ import 'leaflet-arrowheads';
 
 import resizeImageData from "resize-image-data";
 import {ElMessage} from 'element-plus'
+import hotkeys from 'hotkeys-js';
+
 
 let map = null;
 let myMap = null;
@@ -31,7 +33,7 @@ let paths = reactive([{
     loopGo: false,
 }])
 
-const globalStrategy = "zOrder";
+const globalStrategy = "geoHashOrder";
 const globalFeature = "Velocity";
 const globalDebug = false;
 
@@ -219,7 +221,7 @@ class Mover {
             iconUrl: "/ugv.svg",
             iconSize: [16, 16],
         }));
-        this.moveDuration = 500;
+        this.moveDuration = 200;
 
         this.hasPolyLines = false;
         this.maxPolyLineLength = 200;
@@ -668,10 +670,13 @@ class MotionRugs {
         this.setHasLineMask(false);
         this.setHasRecMask(false);
     }
-
 }
 
+
 motionRugs = new MotionRugs();
+hotkeys("ctrl+1", () => {
+    motionRugs.clearAllMask();
+})
 
 // ========================= Processor =========================
 class MotionRugsDataset {
@@ -686,6 +691,7 @@ class MotionRugsDataset {
         this.featureName = globalFeature;
 
         this.idxxx = [];
+        this.tauList = [];
     }
 
     setMaxDataLength(maxDataLength) {
@@ -706,8 +712,45 @@ class MotionRugsDataset {
         }
         this.getOrderedData(this.strategyName);
         this.getDeciles(this.featureName);
+
+
+        if (this.orderedData.length > 1) {
+            this.calcKendallTau();
+        }
         motionRugs.updateData();
     }
+
+    calcKendallTau = () => {
+        // 分别是一个obj list
+        const A = this.orderedData[this.orderedData.length - 1];
+        const B = this.orderedData[this.orderedData.length - 2];
+
+        let concordant = 0, discordant = 0, tied = 0;
+        for (let i = 0; i < A.length; i++) {
+            for (let j = i + 1; j < B.length; j++) {
+                if ((A[j].TrackID - A[i].TrackID) * (B[j].TrackID - B[i].TrackID) > 0) {
+                    concordant++;
+                } else if ((A[i].TrackID - A[j].TrackID) * (B[i].TrackID - B[j].TrackID) < 0) {
+                    discordant++;
+                } else {
+                    tied++;
+                }
+            }
+        }
+
+        let ans = (concordant - discordant) / (concordant + discordant + tied);
+        // console.log("concordant", concordant, "discordant", discordant, "tied", tied, "ans", ans);
+        this.tauList.push(ans);
+        if (this.tauList.length % 25 === 0) {
+            const sum = this.tauList.reduce((a, b) => a + b, 0);
+            const mean = sum / this.tauList.length;
+            const maxx = Math.max(...this.tauList);
+            const minn = Math.min(...this.tauList);
+            const mid = Math.floor(this.tauList.length / 2);
+            const variance = this.tauList.reduce((a, b) => a + (b - mean) ** 2, 0) / this.tauList.length;
+            console.log("avg:", sum / this.tauList.length, "max:", maxx, "min:", minn, "mid:", this.tauList[mid], "variance:", variance);
+        }
+    };
 
     // 对这一frame的数据（这帧上的切片）进行排序
     getOrderedData(strategyName = "zOrder", frame = this.baseData.length - 1) {
@@ -775,18 +818,50 @@ class MotionRugsDataset {
     }
 
     hilbertOrder(frame) {
+        const hilbert2 = (x, y, n = 65536) => {
+            function rotate(n, x, y, rx, ry) {
+                if (ry === 0) {
+                    if (rx & n) {
+                        x = n - 1 - x;
+                        y = n - 1 - y;
+                    }
+                    let t = x;
+                    x = y;
+                    y = t;
+                }
+            }
+
+            x = parseInt((x * 100000).toString().substring(3))
+            y = parseInt((y * 100000).toString().substring(3))
+            let rx = 0;
+            let ry = 0;
+            let s = Math.floor(n / 2);
+            let d = 0;
+            while (s > 0) {
+                if (x & s) {
+                    rx ^= s - 1;
+                }
+                if (y & s) {
+                    ry ^= s - 1;
+                }
+                d += s * s * ((3 * rx) ^ ry);
+                rotate(s, x, y, rx, ry);
+                s = Math.floor(s / 2);
+            }
+            return d;
+        }
         const hilbertCurveIndex = (lat, lon, id = -1) => {
             lat = lat * 2000;
             lon = lon * 2000;
 
             const n = 65536; // 网格数量
-            const latRange = [90, -90]; // 纬度范围
-            const lonRange = [-180, 180]; // 经度范围
+            const latRange = [30 * 2000, 40 * 2000]; // 纬度范围
+            const lonRange = [-90 * 2000, -80 * 2000]; // 经度范围
 
             // 将经纬度转换为网格索引
             const latIndex = Math.floor(((lat - latRange[1]) / (latRange[0] - latRange[1])) * n);
             const lonIndex = Math.floor(((lon - lonRange[0]) / (lonRange[1] - lonRange[0])) * n);
-
+            console.log(latIndex, lonIndex)
             // 将网格索引转换为希尔伯特曲线索引
             let index = 0;
             let mask = 1 << 15;
@@ -819,7 +894,8 @@ class MotionRugsDataset {
         }
 
         this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
-            return hilbertCurveIndex(a.LatitudeGPS, a.LongitudeGPS, a.TrackID) - hilbertCurveIndex(b.LatitudeGPS, b.LongitudeGPS, b.TrackID);
+            // return hilbertCurveIndex(a.LatitudeGPS, a.LongitudeGPS, a.TrackID) - hilbertCurveIndex(b.LatitudeGPS, b.LongitudeGPS, b.TrackID);
+            return hilbert2(a.LatitudeGPS, a.LongitudeGPS) - hilbert2(b.LatitudeGPS, b.LongitudeGPS);
         });
 
         this.orderedToID[frame] = this.orderedData[frame].map((d) => {
@@ -837,6 +913,8 @@ class MotionRugsDataset {
             const latInt = Math.round(lat * LAT_RATIO);
             const lngInt = Math.round(lng * LNG_RATIO);
 
+            // console.log(lngInt, (lngInt >>> 0), (lngInt >>> 0).toString(2))
+            // console.log((latInt >> 0).toString(2), (lngInt >> 0).toString(2));
             // 将经度和纬度的整数值转换为二进制并拼接起来
             const binStr = (latInt >>> 0).toString(2).padStart(32, "0") + (lngInt >>> 0).toString(2).padStart(32, "0");
 
@@ -844,9 +922,10 @@ class MotionRugsDataset {
             const index = [];
             for (let i = 0; i < binStr.length; i += 2) {
                 const group = binStr.slice(i, i + 2);
+                // console.log(group, parseInt(group, 2));
                 index.push(parseInt(group, 2));
             }
-
+            // 00000010 00100111 00000100 01101101 11111010 11010100 10110110 10010101
             // if (frame === 0) {
             //     this.idxxx.push(index);
             //
@@ -951,9 +1030,18 @@ class EventProcessor {
                 iconUrl: (rank >= 2 ? '/dangerous.svg' : (rank >= 1 ? '/warning.svg' : '/info.svg')),
                 iconSize: [28, 28],
             })
-        }).addTo(map).bindPopup(msg).openPopup();
+        }).addTo(map).bindPopup(
+            `<div class="event-popup">
+                <div class="event-popup-img">
+                    <img src="${img}" alt="event-img" width="64px">
+                </div>
+                <div class="event-popup-msg">
+                    <p>${msg}</p>
+                </div>
+                `
+        ).openPopup();
         this.gIdx++;
-        mapController.sidebar.open("allEvents");
+
         map.panTo(loc);
 
         if (tempEvent.rk > 1) {
@@ -963,6 +1051,7 @@ class EventProcessor {
                 duration: 0,
                 showClose: true,
             });
+            mapController.sidebar.open("allEvents");
         }
     }
 
@@ -1319,7 +1408,7 @@ const rclkMotionRugs = (e) => {
                                 </el-button>
                             </el-form-item>
                             <el-form-item label="循环执行">
-                                <el-switch v-model="pathController.pathForm.loopGo" />
+                                <el-switch v-model="pathController.pathForm.loopGo"/>
                             </el-form-item>
                             <el-form-item>
                                 <el-button type="primary" @click="pathController.finishRecord()">完成设置</el-button>
@@ -1344,7 +1433,8 @@ const rclkMotionRugs = (e) => {
                                 </el-descriptions-item>
                                 <el-descriptions-item label="循环执行">
                                     <el-tag :type="item.loopGo === true ? 'success' : 'danger'"
-                                            effect="dark">{{ item.loopGo === true ? '是' : '否' }}</el-tag>
+                                            effect="dark">{{ item.loopGo === true ? '是' : '否' }}
+                                    </el-tag>
                                 </el-descriptions-item>
                             </el-descriptions>
                             <div :style="{width: '100%'}">
