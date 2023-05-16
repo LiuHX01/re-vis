@@ -737,8 +737,20 @@ class MotionRugsDataset {
                 }
             }
         }
+        /*
+        A B
+        3 4
+        1 1
+        4 3
+        2 2
+        i = 1, j = 2
+        xi = 3, yi = 4
+        xj = 1, yj = 1
+         */
 
         let ans = (concordant - discordant) / (concordant + discordant + tied);
+        // let ans = 2 * (concordant - discordant) / (A.length * A.length / 2);
+        // console.log((concordant + discordant + tied) === (A.length * (A.length - 1) / 2))
         // console.log("concordant", concordant, "discordant", discordant, "tied", tied, "ans", ans);
         this.tauList.push(ans);
         if (this.tauList.length % 25 === 0) {
