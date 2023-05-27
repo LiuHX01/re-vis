@@ -11,6 +11,8 @@
   "dependencies": {
     "csvtojson": "^2.0.10",
     "element-plus": "^2.3.1",
+    "file-saver": "^2.0.5",
+    "geo-hash": "^0.0.2",
     "hotkeys-js": "^3.10.2",
     "leaflet": "^1.9.3",
     "leaflet-arrowheads": "^1.4.0",
@@ -19,6 +21,7 @@
     "leaflet.motion": "^0.3.2",
     "mitt": "^3.0.0",
     "resize-image-data": "^0.3.1",
+    "s2-geometry": "^1.2.10",
     "vue": "^3.2.47",
     "vue-router": "^4.1.6"
   },

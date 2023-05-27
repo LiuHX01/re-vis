@@ -14,6 +14,12 @@ import resizeImageData from "resize-image-data";
 import {ElMessage} from 'element-plus'
 import hotkeys from 'hotkeys-js';
 
+import {grid} from "../tools/touying.js"
+import {Config} from "../tools/config.js";
+
+import {S2} from "s2-geometry/src/s2geometry.js";
+import geo from "geo-hash/index.js";
+import {saveAs} from "file-saver"
 
 let map = null;
 let myMap = null;
@@ -24,7 +30,6 @@ let motionRugsDataset = null;
 let pixelContainerRef = ref(null);
 let eventProcessor = null;
 let events = reactive([])
-// let pathController = null;
 let paths = reactive([{
     name: "默认路径",
     activeDevice: ["无人机"],
@@ -33,18 +38,17 @@ let paths = reactive([{
     loopGo: false,
 }])
 
-const globalStrategy = "geoHashOrder";
-const globalFeature = "Velocity";
-const globalDebug = false;
+const globalStrategy = Config.Strategy;
+const globalFeature = Config.Feature;
+const hasDownload = !Config.downloadOpen;
+const globalColor = Config.defaultColors;
 
 // ========================= 地图自身 =========================
-
-
 class MyMap {
     constructor() {
         this.zoom = 16;
-        this.maxZoom = 20;
-        this.minZoom = 10;
+        this.maxZoom = 40;
+        this.minZoom = 5;
         this.nowCenter = [36.111582, -86.713157];
         // this.nowCenter = [38.996791, 117.306754]
 
@@ -221,7 +225,7 @@ class Mover {
             iconUrl: "/ugv.svg",
             iconSize: [16, 16],
         }));
-        this.moveDuration = 200;
+        this.moveDuration = Config.Duration;
 
         this.hasPolyLines = false;
         this.maxPolyLineLength = 200;
@@ -231,20 +235,8 @@ class Mover {
         this.staticPolyLines = [];
         this.staticMarkers = [];
 
-        this.colors = [
-            "#313695",
-            "#4575B4",
-            "#74ADD1",
-            "#ABD9E9",
-            "#E0F3F8",
-            "#FEE090",
-            "#FDAE61",
-            "#F46D43",
-            "#D73027",
-            "#A50026"
-        ];
+        this.colors = globalColor;
 
-        this.debug = globalDebug
         this.openOffset = false;
         this.offsetLatitude = 0;
         this.offsetLongitude = 0;
@@ -444,36 +436,30 @@ class MotionRugs {
         this.recMaskID = -1;
         this.recMaskYPos = -1;
         this.recMaskFrame = -1;
-        this.recMaskWidth = 3;
+        this.recMaskWidth = 5;
         this.recMaskHeight = 3;
         this.recMaskThreshold = 1;
         this.recMaskColorIdx = -1;
         this.recMaskSwitch = true;
 
-        this.colors = [
-            "#313695",
-            "#4575B4",
-            "#74ADD1",
-            "#ABD9E9",
-            "#E0F3F8",
-            "#FEE090",
-            "#FDAE61",
-            "#F46D43",
-            "#D73027",
-            "#A50026"
-        ];
-        this.contrastingColors = [
-            "#CEC96A",
-            "#BA8A4B",
-            "#8B522E",
-            "#542616",
-            "#1F0C07",
-            "#011F6F",
-            "#02519E",
-            "#0B92BC",
-            "#28CFD8",
-            "#5AFFD9"
-        ];
+        this.colors = globalColor;
+        this.hasDownloaded = hasDownload;
+    }
+
+    saveImg() {
+        if (!this.hasDownloaded && motionRugsDataset.orderedData.length === 420) {
+            console.log("download")
+            this.canvas.toBlob(function (blob) {
+                saveAs(blob, `I24_${globalStrategy}_${motionRugsDataset.orderedData.length}.png`);
+            });
+            this.hasDownloaded = true;
+        }
+    }
+
+    downloadImg() {
+        this.canvas.toBlob(function (blob) {
+            saveAs(blob, `A_${globalStrategy}_${motionRugsDataset.orderedData.length}.png`);
+        });
     }
 
     updateData() {
@@ -482,6 +468,7 @@ class MotionRugs {
 
         this.resizedImageData = resizeImageData(this.maskedImageData, this.maskedImageData.width * motionRugs.resizeScale, this.maskedImageData.height * motionRugs.resizeScale);
         this.ctx.putImageData(this.resizedImageData, 0, 0);
+        this.saveImg();
     }
 
     generateRawImageData(feature = "Velocity") {
@@ -574,25 +561,6 @@ class MotionRugs {
                     this.maskedImageData.data[idx + 2] = 255;
                     this.maskedImageData.data[idx + 3] = 255;
 
-
-                    // this.maskedImageData.data[idx] = parseInt(this.contrastingColors[colorIdx].substring(1, 3), 16);
-                    // this.maskedImageData.data[idx + 1] = parseInt(this.contrastingColors[colorIdx].substring(3, 5), 16);
-                    // this.maskedImageData.data[idx + 2] = parseInt(this.contrastingColors[colorIdx].substring(5, 7), 16);
-                    // this.maskedImageData.data[idx + 3] = 255;
-                    //
-                    // if (j > 0) {
-                    //     this.maskedImageData.data[idxTop] = parseInt(this.contrastingColors[colorIdx].substring(1, 3), 16);
-                    //     this.maskedImageData.data[idxTop + 1] = parseInt(this.contrastingColors[colorIdx].substring(3, 5), 16);
-                    //     this.maskedImageData.data[idxTop + 2] = parseInt(this.contrastingColors[colorIdx].substring(5, 7), 16);
-                    //     this.maskedImageData.data[idxTop + 3] = 255;
-                    // }
-                    //
-                    // if (j < motionRugsDataset.orderedData[i].length - 1) {
-                    //     this.maskedImageData.data[idxBottom] = parseInt(this.contrastingColors[colorIdx].substring(1, 3), 16);
-                    //     this.maskedImageData.data[idxBottom + 1] = parseInt(this.contrastingColors[colorIdx].substring(3, 5), 16);
-                    //     this.maskedImageData.data[idxBottom + 2] = parseInt(this.contrastingColors[colorIdx].substring(5, 7), 16);
-                    //     this.maskedImageData.data[idxBottom + 3] = 255;
-                    // }
                     break;
                 }
             }
@@ -649,11 +617,14 @@ class MotionRugs {
                     // this.maskedImageData.data[idx] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(1, 3), 16);
                     // this.maskedImageData.data[idx + 1] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(3, 5), 16);
                     // this.maskedImageData.data[idx + 2] = parseInt(this.contrastingColors[this.recMaskColorIdx].substring(5, 7), 16);
-                    this.maskedImageData.data[idx] = parseInt(this.colors[this.recMaskColorIdx].substring(1, 3), 16);
-                    this.maskedImageData.data[idx + 1] = parseInt(this.colors[this.recMaskColorIdx].substring(3, 5), 16);
-                    this.maskedImageData.data[idx + 2] = parseInt(this.colors[this.recMaskColorIdx].substring(5, 7), 16);
+                    // this.maskedImageData.data[idx] = parseInt(this.colors[this.recMaskColorIdx].substring(1, 3), 16);
+                    // this.maskedImageData.data[idx + 1] = parseInt(this.colors[this.recMaskColorIdx].substring(3, 5), 16);
+                    // this.maskedImageData.data[idx + 2] = parseInt(this.colors[this.recMaskColorIdx].substring(5, 7), 16);
+                    // this.maskedImageData.data[idx + 3] = 255;
+                    this.maskedImageData.data[idx] = 255;
+                    this.maskedImageData.data[idx + 1] = 255;
+                    this.maskedImageData.data[idx + 2] = 255;
                     this.maskedImageData.data[idx + 3] = 255;
-
                     try {
                         movers[motionRugsDataset.orderedToID[x][y]].addStaticPolyLine(x);
                     } catch (e) {
@@ -678,6 +649,10 @@ hotkeys("ctrl+1", () => {
     motionRugs.clearAllMask();
 })
 
+hotkeys("ctrl+0", () => {
+    motionRugs.downloadImg();
+})
+
 // ========================= Processor =========================
 class MotionRugsDataset {
     constructor() {
@@ -690,17 +665,13 @@ class MotionRugsDataset {
         this.strategyName = globalStrategy;
         this.featureName = globalFeature;
 
-        this.idxxx = [];
         this.tauList = [];
+        this.skips = [];
+        this.crossings = [];
     }
 
     setMaxDataLength(maxDataLength) {
         this.maxDataLength = Math.floor(maxDataLength / motionRugs.resizeScale);
-        ElMessage({
-            message: "Max data length is set to " + this.maxDataLength,
-            type: "success",
-            duration: 1000
-        });
     }
 
     newData(data) {
@@ -714,13 +685,14 @@ class MotionRugsDataset {
         this.getDeciles(this.featureName);
 
 
-        if (this.orderedData.length > 1) {
+        if (Config.calcOpen && this.orderedData.length > 1) {
             this.calcKendallTau();
+            this.calcSkips();
         }
         motionRugs.updateData();
     }
 
-    calcKendallTau = () => {
+    calcKendallTau() {
         // 分别是一个obj list
         const A = this.orderedData[this.orderedData.length - 1];
         const B = this.orderedData[this.orderedData.length - 2];
@@ -737,32 +709,77 @@ class MotionRugsDataset {
                 }
             }
         }
-        /*
-        A B
-        3 4
-        1 1
-        4 3
-        2 2
-        i = 1, j = 2
-        xi = 3, yi = 4
-        xj = 1, yj = 1
-         */
-
+        this.crossings.push(discordant);
         let ans = (concordant - discordant) / (concordant + discordant + tied);
-        // let ans = 2 * (concordant - discordant) / (A.length * A.length / 2);
-        // console.log((concordant + discordant + tied) === (A.length * (A.length - 1) / 2))
-        // console.log("concordant", concordant, "discordant", discordant, "tied", tied, "ans", ans);
+
         this.tauList.push(ans);
-        if (this.tauList.length % 25 === 0) {
+        if (this.tauList.length % 50 === 0) {
             const sum = this.tauList.reduce((a, b) => a + b, 0);
             const mean = sum / this.tauList.length;
             const maxx = Math.max(...this.tauList);
             const minn = Math.min(...this.tauList);
             const mid = Math.floor(this.tauList.length / 2);
-            const variance = this.tauList.reduce((a, b) => a + (b - mean) ** 2, 0) / this.tauList.length;
-            console.log("avg:", sum / this.tauList.length, "max:", maxx, "min:", minn, "mid:", this.tauList[mid], "variance:", variance);
+            const median = this.tauList.sort((a, b) => a - b)[mid];
+
+            const variance = Math.sqrt(this.tauList.reduce((a, b) => a + (b - mean) ** 2, 0) / this.tauList.length);
+            // console.log("[Kendall Tau] len:", this.tauList.length, "avg:", (sum / this.tauList.length).toFixed(4), "max:", maxx.toFixed(4), "min:", minn.toFixed(4), "mid:", this.tauList[mid].toFixed(4), "variance:", variance.toFixed(4));
+
+
+            const sum2 = this.crossings.reduce((a, b) => a + b, 0);
+            const mean2 = sum2 / this.crossings.length;
+            const maxx2 = Math.max(...this.crossings);
+            const minn2 = Math.min(...this.crossings);
+            const mid2 = Math.floor(this.crossings.length / 2);
+            const median2 = this.crossings.sort((a, b) => a - b)[mid2];
+            const variance2 = Math.sqrt(this.crossings.reduce((a, b) => a + (b - mean2) ** 2, 0) / this.crossings.length);
+            // console.log("[Crossings] len:", this.crossings.length, "avg:", (sum2 / this.crossings.length).toFixed(4), "max:", maxx2.toFixed(4), "min:", minn2.toFixed(4), "mid:", this.crossings[mid2].toFixed(4), "variance:", variance2.toFixed(4));
+
+            if (this.tauList.length === 100 || this.tauList.length === 500) {
+                // FileSaver.saveAs(new Blob([this.tauList.join("\n")], {type: "text/plain;charset=utf-8"}), 'tau.txt');
+                // FileSaver.saveAs(new Blob([this.crossings.join("\n")], {type: "text/plain;charset=utf-8"}), 'crossings.txt');
+                console.log(`[${this.tauList.length}-Kendall's Tau] Median:${median.toFixed(4)} Mean:${mean.toFixed(4)} Max:${maxx.toFixed(4)} Variance:${variance.toFixed(4)}`)
+                console.log(`[${this.tauList.length}-Crossings    ] Median:${median2.toFixed(4)} Mean:${mean2.toFixed(4)} Max:${maxx2.toFixed(4)} Variance:${variance2.toFixed(4)}`)
+            }
         }
     };
+
+    calcSkips() {
+        const A = this.orderedData[this.orderedData.length - 1];
+        const B = this.orderedData[this.orderedData.length - 2];
+
+        let skip = 0;
+        for (let i = 0; i < A.length; i++) {
+            for (let j = 0; j < B.length; j++) {
+                if (A[i].TrackID === B[j].TrackID) {
+                    skip += Math.abs(i - j);
+                    break;
+                }
+            }
+        }
+
+        this.skips.push(skip)
+
+        if (this.skips.length % 50 === 0) {
+            const sum = this.skips.reduce((a, b) => a + b, 0);
+            const mean = sum / this.skips.length;
+            const maxx = Math.max(...this.skips);
+            const minn = Math.min(...this.skips);
+            const mid = Math.floor(this.skips.length / 2);
+            const median = this.skips.sort((a, b) => a - b)[mid];
+            const variance = Math.sqrt(this.skips.reduce((a, b) => a + (b - mean) ** 2, 0) / this.skips.length);
+            // console.log("[SKIPS] len:", this.skips.length, "avg:", (sum / this.skips.length).toFixed(4), "max:", maxx.toFixed(4), "min:", minn.toFixed(4), "mid:", this.skips[mid].toFixed(4), "variance:", variance.toFixed(4));
+            if (this.skips.length === 100 || this.skips.length === 500) {
+                // FileSaver.saveAs(new Blob([this.skips.join("\n")], {type: "text/plain;charset=utf-8"}), 'skips.txt');
+                console.log(`[${this.skips.length}-SKIPS        ] Median:${median.toFixed(4)} Mean:${mean.toFixed(4)} Max:${maxx.toFixed(4)} Variance:${variance.toFixed(4)}`)
+
+                // const fenbu = new Array(100).fill(0);
+                // for (let i = 0; i < this.skips.length; i++) {
+                //     fenbu[this.skips[i]] += 1;
+                // }
+                // FileSaver.saveAs(new Blob([fenbu.join("\n")], {type: "text/plain;charset=utf-8"}), 'skips_fenbu.txt');
+            }
+        }
+    }
 
     // 对这一frame的数据（这帧上的切片）进行排序
     getOrderedData(strategyName = "zOrder", frame = this.baseData.length - 1) {
@@ -774,28 +791,23 @@ class MotionRugsDataset {
         }
 
         if (strategyName === "zOrder") {
-            // console.time("zOrder");
             this.zOrder(frame);
-            // console.timeEnd("zOrder");
         } else if (strategyName === "hilbertOrder") {
-            // console.time("hilbertOrder");
             this.hilbertOrder(frame);
-            // console.timeEnd("hilbertOrder");
         } else if (strategyName === "geoHashOrder") {
-            // console.time("geoHashOrder");
             this.geoHashOrder(frame);
-            // console.timeEnd("geoHashOrder");
+        } else if (strategyName === "s2Order") {
+            this.s2Order(frame);
+        } else if (strategyName === "mercatorOrder") {
+            this.mercatorOrder(frame);
         }
-
     }
 
     zOrder(frame) {
         const zOrderIndex = (lat, lon, id = -1) => {
-            const BITS = 32; // 索引值的位数
-
-            // 将经度值和纬度值映射到[0, 2^BITS-1]的整数范围内
-            const latInt = Math.round((lat - 30) * (1 << (BITS - 10)));
-            const lonInt = Math.round((lon + 180) * (1 << (BITS - 9)));
+            const BITS = 20; // 索引值的位数
+            const latInt = Math.floor(lat * 2 ** 20);
+            const lonInt = Math.floor(lon * 2 ** 20);
 
             let index = 0;
             for (let i = 0; i < BITS / 2; i++) {
@@ -806,18 +818,6 @@ class MotionRugsDataset {
                 const interleavedBits = (latBit << 1) | lonBit;
                 index |= interleavedBits << (BITS - i * 2 - 2);
             }
-            // if (frame === 0) {
-            //     this.idxxx.push([id, index]);
-            //     this.idxxx.sort((a, b) => (a[1] - b[1]))
-            //     // 去重
-            //     for (let i = 0; i < this.idxxx.length - 1; i++) {
-            //         if (this.idxxx[i][1] === this.idxxx[i + 1][1]) {
-            //             this.idxxx.splice(i, 1);
-            //             i--;
-            //         }
-            //     }
-            //     console.log(this.idxxx.sort((a, b) => (a[1] - b[1])));
-            // }
             return index;
         }
         this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
@@ -829,84 +829,53 @@ class MotionRugsDataset {
         });
     }
 
+    mercatorOrder(frame) {
+        const mercatorIndex = (lat, lng) => {
+            return grid.getGridIndex(lat, lng);
+        }
+
+        this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
+            return mercatorIndex(a.LatitudeGPS, a.LongitudeGPS) - mercatorIndex(b.LatitudeGPS, b.LongitudeGPS);
+        });
+
+        this.orderedToID[frame] = this.orderedData[frame].map((d) => {
+            return d.TrackID;
+        });
+    }
+
     hilbertOrder(frame) {
-        const hilbert2 = (x, y, n = 65536) => {
-            function rotate(n, x, y, rx, ry) {
+        const hilbert2 = (x, y) => {
+            function rot(n, x, y, rx, ry) {
                 if (ry === 0) {
-                    if (rx & n) {
+                    if (rx === 1) {
                         x = n - 1 - x;
                         y = n - 1 - y;
                     }
-                    let t = x;
-                    x = y;
-                    y = t;
+                    [x, y] = [y, x];
                 }
+                return [x, y];
             }
 
-            x = parseInt((x * 100000).toString().substring(3))
-            y = parseInt((y * 100000).toString().substring(3))
-            let rx = 0;
-            let ry = 0;
-            let s = Math.floor(n / 2);
-            let d = 0;
-            while (s > 0) {
-                if (x & s) {
-                    rx ^= s - 1;
-                }
-                if (y & s) {
-                    ry ^= s - 1;
-                }
-                d += s * s * ((3 * rx) ^ ry);
-                rotate(s, x, y, rx, ry);
-                s = Math.floor(s / 2);
-            }
-            return d;
-        }
-        const hilbertCurveIndex = (lat, lon, id = -1) => {
-            lat = lat * 2000;
-            lon = lon * 2000;
+            x = Math.floor(((x - 30) / (40 - 30)) * 0xfffff);
+            y = Math.floor(((y + 90) / (-80 + 90)) * 0xfffff);
 
-            const n = 65536; // 网格数量
-            const latRange = [30 * 2000, 40 * 2000]; // 纬度范围
-            const lonRange = [-90 * 2000, -80 * 2000]; // 经度范围
+            let rx = 0, ry = 0;
 
-            // 将经纬度转换为网格索引
-            const latIndex = Math.floor(((lat - latRange[1]) / (latRange[0] - latRange[1])) * n);
-            const lonIndex = Math.floor(((lon - lonRange[0]) / (lonRange[1] - lonRange[0])) * n);
-            console.log(latIndex, lonIndex)
-            // 将网格索引转换为希尔伯特曲线索引
-            let index = 0;
-            let mask = 1 << 15;
-            for (let i = 0; i < 16; i++) {
-                const hX = (latIndex & mask) > 0 ? 1 : 0;
-                const hY = (lonIndex & mask) > 0 ? 1 : 0;
-                index += mask * ((3 * hX) ^ hY);
-                mask >>= 1;
+            let s = Math.floor(Math.log2(Math.max(x, y))) + 1;
+
+            let d = 1 << (s - 1), index = 0;
+
+            while (d > 0) {
+                rx = (x & d) > 0 ? 1 : 0;
+                ry = (y & d) > 0 ? 1 : 0;
+                index += d * d * ((3 * rx) ^ ry);
+                [x, y] = rot(d, x, y, rx, ry);
+                d >>= 1;
             }
-            mask = 1 << 31;
-            for (let i = 16; i < 32; i++) {
-                const hX = (latIndex & mask) > 0 ? 1 : 0;
-                const hY = (lonIndex & mask) > 0 ? 1 : 0;
-                index += mask * ((3 * hX) ^ hY);
-                mask >>= 1;
-            }
-// if (frame === 0) {
-//                 this.idxxx.push([id, index]);
-//                 this.idxxx.sort((a, b) => (a[1] - b[1]))
-//                 // 去重
-//                 for (let i = 0; i < this.idxxx.length - 1; i++) {
-//                     if (this.idxxx[i][1] === this.idxxx[i + 1][1]) {
-//                         this.idxxx.splice(i, 1);
-//                         i--;
-//                     }
-//                 }
-//                 console.log(this.idxxx.sort((a, b) => (a[1] - b[1])));
-//             }
             return index;
         }
 
         this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
-            // return hilbertCurveIndex(a.LatitudeGPS, a.LongitudeGPS, a.TrackID) - hilbertCurveIndex(b.LatitudeGPS, b.LongitudeGPS, b.TrackID);
             return hilbert2(a.LatitudeGPS, a.LongitudeGPS) - hilbert2(b.LatitudeGPS, b.LongitudeGPS);
         });
 
@@ -916,65 +885,27 @@ class MotionRugsDataset {
     }
 
     geoHashOrder(frame) {
-        // 将经纬度转换为索引值
-        const latLngToIndex = (lat, lng, id = -1) => {
-            const LAT_RATIO = 1000000;
-            const LNG_RATIO = 1000000;
-
-            // 将经度和纬度转换为整数
-            const latInt = Math.round(lat * LAT_RATIO);
-            const lngInt = Math.round(lng * LNG_RATIO);
-
-            // console.log(lngInt, (lngInt >>> 0), (lngInt >>> 0).toString(2))
-            // console.log((latInt >> 0).toString(2), (lngInt >> 0).toString(2));
-            // 将经度和纬度的整数值转换为二进制并拼接起来
-            const binStr = (latInt >>> 0).toString(2).padStart(32, "0") + (lngInt >>> 0).toString(2).padStart(32, "0");
-
-            // 将二进制字符串从左到右每两位分割成一组，将每组转换为一个十进制数字
-            const index = [];
-            for (let i = 0; i < binStr.length; i += 2) {
-                const group = binStr.slice(i, i + 2);
-                // console.log(group, parseInt(group, 2));
-                index.push(parseInt(group, 2));
-            }
-            // 00000010 00100111 00000100 01101101 11111010 11010100 10110110 10010101
-            // if (frame === 0) {
-            //     this.idxxx.push(index);
-            //
-            //     let hasDel = true;
-            //     while (hasDel) {
-            //         hasDel = false;
-            //         for (let i = 0; i < this.idxxx.length - 1; i++) {
-            //             if (this.idxxx[i].join("") === this.idxxx[i + 1].join("")) {
-            //                 this.idxxx.splice(i, 1);
-            //                 i--;
-            //                 hasDel = true;
-            //             }
-            //         }
-            //     }
-            //
-            //     console.log(this.idxxx.sort((a, b) => (a[1] - b[1])));
-            // }
-            return index;
-        }
-
-        // 比较两个经纬度索引值的大小
-        const compareLatLngIndex = (index1, index2) => {
-            for (let i = 0; i < 32; i++) {
-                // 32 是经纬度索引值的长度
-                if (index1[i] === index2[i]) {
-                    continue;
-                } else {
-                    return index1[i] > index2[i] ? 1 : -1;
-                }
-            }
-            return 0;
+        const g2 = (latitude, longitude) => {
+            return geo.encode(latitude, longitude, 10);
         }
 
         this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
-            return compareLatLngIndex(latLngToIndex(a.LatitudeGPS, a.LongitudeGPS, a.TrackID), latLngToIndex(b.LatitudeGPS, b.LongitudeGPS, b.TrackID));
+            return g2(a.LatitudeGPS, a.LongitudeGPS).localeCompare(g2(b.LatitudeGPS, b.LongitudeGPS));
         });
 
+        this.orderedToID[frame] = this.orderedData[frame].map((d) => {
+            return d.TrackID;
+        });
+    }
+
+    s2Order(frame) {
+        const s2 = (latitude, longitude) => {
+            const ky = S2.latLngToKey(latitude, longitude, 20);
+            return S2.keyToId(ky);
+        }
+        this.orderedData[frame] = this.baseData[frame].sort((a, b) => {
+            return s2(a.LatitudeGPS, a.LongitudeGPS) - s2(b.LatitudeGPS, b.LongitudeGPS);
+        });
         this.orderedToID[frame] = this.orderedData[frame].map((d) => {
             return d.TrackID;
         });
@@ -1128,10 +1059,10 @@ class PathController {
             this.tempPath.push(e.latlng);
 
             this.tempMarkers.push(L.marker(this.tempPath[this.tempPath.length - 1], {
-                icon: L.icon({
-                    iconUrl: '/vite.svg',
-                    iconSize: [28, 28],
-                })
+                // icon: L.icon({
+                //     iconUrl: '/vite.svg',
+                //     iconSize: [28, 28],
+                // })
             }).addTo(map));
             if (this.tempPath.length >= 2) {
                 this.tempPolyLines.push(L.polyline([this.tempPath[this.tempPath.length - 2], this.tempPath[this.tempPath.length - 1]], {
@@ -1231,6 +1162,7 @@ onMounted(() => {
 
             fData.forEach((item) => {
                 const {Time, TrackID, LatitudeGPS, LongitudeGPS, Velocity, Acceleration, Type} = item;
+
                 const loc = [LatitudeGPS, LongitudeGPS];
                 if (!(TrackID in movers)) {
                     movers[TrackID] = new Mover(TrackID, Type);
@@ -1308,6 +1240,13 @@ const rclkMotionRugs = (e) => {
                         </a>
                     </li>
                 </ul>
+                <ul>
+                    <li>
+                        <a href="#motionRugsSet" role="tab" class="tab-icon">
+                            <img src="/path.svg" width="23" height="40" alt=""/>
+                        </a>
+                    </li>
+                </ul>
             </div>
             <div class="leaflet-sidebar-content">
                 <div class="leaflet-sidebar-pane" id="allMovers">
@@ -1366,26 +1305,6 @@ const rclkMotionRugs = (e) => {
                                            @click="eventProcessor.finishEvent(item.idx)" plain>
                                     完成
                                 </el-button>
-                                <!--                                <el-popconfirm title="是否派遣设备？" confirm-button-text="确定"-->
-                                <!--                                               cancel-button-text="取消"-->
-                                <!--                                               @confirm="eventProcessor.moversGo(item.idx)">-->
-                                <!--                                    <template #reference>-->
-                                <!--                                        <el-button :style="{width: '100%'}">-->
-                                <!--                                            快速派遣-->
-                                <!--                                        </el-button>-->
-                                <!--                                    </template>-->
-                                <!--                                </el-popconfirm>-->
-
-                                <!--                                <el-popconfirm title="完成这个事件？" confirm-button-text="确定"-->
-                                <!--                                               cancel-button-text="取消"-->
-                                <!--                                               @confirm="eventProcessor.finishEvent(item.idx)">-->
-                                <!--                                    <template #reference>-->
-                                <!--                                        <el-button :type="item.tag" :style="{width: '100%'}">-->
-                                <!--                                            完成事件-->
-                                <!--                                        </el-button>-->
-                                <!--                                    </template>-->
-                                <!--                                </el-popconfirm>-->
-
                             </el-button-group>
                         </el-card>
                     </div>
@@ -1397,10 +1316,6 @@ const rclkMotionRugs = (e) => {
                                :style="{width: '100%', marginTop: '10px'}" type="primary"
                                @click="pathController.newPath()" plain>添加路径
                     </el-button>
-                    <!--                    <el-button-group v-else>-->
-                    <!--                        <el-button :style="{width: '50%'}" type="success" @click="pathController.finishRecord()" plain>完成设置</el-button>-->
-                    <!--                        <el-button :style="{width: '50%'}" type="danger" @click="pathController.delLast()" plain>删除上一个</el-button>-->
-                    <!--                    </el-button-group>-->
                     <el-card :style="{padding: '10px', marginTop: '10px', marginBottom: '10px'}"
                              v-if="pathController.checkRecording() === true">
                         <el-form :label-position="'left'">
@@ -1467,6 +1382,11 @@ const rclkMotionRugs = (e) => {
                             </div>
                         </el-card>
                     </div>
+                </div>
+
+                <div class="leaflet-sidebar-pane" id="motionRugsSet">
+                    <h1 class="leaflet-sidebar-header">MotionRugs设置</h1>
+
                 </div>
             </div>
         </div>
