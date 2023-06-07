@@ -41,7 +41,16 @@ let paths = reactive([{
 const globalStrategy = Config.Strategy;
 const globalFeature = Config.Feature;
 const hasDownload = !Config.downloadOpen;
-const globalColor = Config.defaultColors;
+let globalColors = reactive(["#313695",
+    "#4575B4",
+    "#74ADD1",
+    "#ABD9E9",
+    "#E0F3F8",
+    "#FEE090",
+    "#FDAE61",
+    "#F46D43",
+    "#D73027",
+    "#A50026"]);
 
 // ========================= 地图自身 =========================
 class MyMap {
@@ -68,21 +77,6 @@ class MyMap {
         map.zoomControl.setPosition("topright");
 
         this.baseMapsSwitcherPlugin()
-
-        // 点击输出经纬度
-        // map.on("click", (e) => {
-        //     console.log(`click:${e.latlng}, center:${map.getCenter()}`);
-        //     ElMessage({
-        //         message: `click:${e.latlng}, center:${map.getCenter()}`,
-        //         type: 'success'
-        //     })
-        //     if (this.tmpMarker) {
-        //         this.tmpMarker.remove();
-        //     }
-        //     this.tmpMarker = L.marker(e.latlng).addTo(map);
-        // });
-        // this.doSomeTest();
-
     }
 
     baseMapsSwitcherPlugin() {
@@ -235,7 +229,7 @@ class Mover {
         this.staticPolyLines = [];
         this.staticMarkers = [];
 
-        this.colors = globalColor;
+        this.colors = globalColors;
 
         this.openOffset = false;
         this.offsetLatitude = 0;
@@ -442,7 +436,18 @@ class MotionRugs {
         this.recMaskColorIdx = -1;
         this.recMaskSwitch = true;
 
-        this.colors = globalColor;
+        this.colors = [
+            "#313695",
+            "#4575B4",
+            "#74ADD1",
+            "#ABD9E9",
+            "#E0F3F8",
+            "#FEE090",
+            "#FDAE61",
+            "#F46D43",
+            "#D73027",
+            "#A50026"
+        ];
         this.hasDownloaded = hasDownload;
     }
 
@@ -1148,7 +1153,7 @@ onMounted(() => {
     motionRugs.canvas = document.getElementById("canvas");
     motionRugs.ctx = motionRugs.canvas.getContext("2d");
     motionRugs.canvas.width = pixelContainerRef.value.clientWidth;
-    motionRugs.canvas.height = 14 * motionRugs.resizeScale;
+    motionRugs.canvas.height = Config.MoverNum * motionRugs.resizeScale;
 
     motionRugsDataset.setMaxDataLength(pixelContainerRef.value.clientWidth)
     DataAdaptor.Listener((data) => {
@@ -1167,6 +1172,7 @@ onMounted(() => {
                 if (!(TrackID in movers)) {
                     movers[TrackID] = new Mover(TrackID, Type);
                     movers[TrackID].setFrameLength(pixelContainerRef.value.clientWidth);
+
                 }
                 if (Time !== -11) {
                     movers[TrackID].newData(loc, fNum, Velocity, Acceleration)
@@ -1217,6 +1223,26 @@ const rclkMotionRugs = (e) => {
 
     }
 }
+
+const reset_Colors = () => {
+    console.log(Config.defaultColors)
+    globalColors = Config.defaultColors;
+    motionRugs.colors = Config.defaultColors;
+    for (let i = 0; i < Object.keys(movers).length; i++) {
+        movers[Object.keys(movers)[i]].color = Config.defaultColors;
+    }
+    console.log(Config.defaultColors)
+}
+
+const changeColor = (e, index) => {
+    console.log("changeColor",e, index);
+    globalColors[index] = e;
+    motionRugs.colors[index] = e;
+    for (let i = 0; i < Object.keys(movers).length; i++) {
+        movers[Object.keys(movers)[i]].color = motionRugs.colors[i];
+    }
+    console.log(globalColors)
+}
 </script>
 
 <template>
@@ -1226,24 +1252,24 @@ const rclkMotionRugs = (e) => {
                 <ul role="tablist">
                     <li>
                         <a href="#allMovers" role="tab" class="tab-icon">
-                            <img src="/watching.svg" width="30" height="40" alt=""/>
+                            <img src="/watching-v2.svg" width="30" height="40" alt=""/>
                         </a>
                     </li>
                     <li>
                         <a href="#allEvents" role="tab" class="tab-icon">
-                            <img src="/alert.svg" width="30" height="40" alt=""/>
+                            <img src="/alert-v2.svg" width="30" height="40" alt=""/>
                         </a>
                     </li>
                     <li>
                         <a href="#allControls" role="tab" class="tab-icon">
-                            <img src="/path.svg" width="23" height="40" alt=""/>
+                            <img src="/path-v2.svg" width="23" height="40" alt=""/>
                         </a>
                     </li>
                 </ul>
                 <ul>
                     <li>
                         <a href="#motionRugsSet" role="tab" class="tab-icon">
-                            <img src="/path.svg" width="23" height="40" alt=""/>
+                            <img src="/setting-v2.svg" width="23" height="40" alt=""/>
                         </a>
                     </li>
                 </ul>
@@ -1386,7 +1412,14 @@ const rclkMotionRugs = (e) => {
 
                 <div class="leaflet-sidebar-pane" id="motionRugsSet">
                     <h1 class="leaflet-sidebar-header">MotionRugs设置</h1>
-
+                    <el-card class="set-item">
+                        <div class="set-name">颜色设置
+<!--                            <el-button size="small" @click="reset_Colors()" plain>reset</el-button>-->
+                        </div>
+                        <span class="color-picker" v-for="(item, index) in globalColors">
+                            <el-color-picker v-model="globalColors[index]" @change="changeColor($event, index)" :predefine="Config.defaultColors"/>
+                        </span>
+                    </el-card>
                 </div>
             </div>
         </div>
@@ -1432,6 +1465,23 @@ const rclkMotionRugs = (e) => {
 .event-card {
     margin-bottom: 10px;
     margin-top: 10px;
+}
+
+.color-picker {
+    /*margin-top: 20px;*/
+    margin-left: 4px;
+}
+
+.set-item {
+    margin-top: 10px;
+    padding: 5px;
+}
+
+.set-name {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    padding-left: 7px;
 }
 
 .el-button-group {
